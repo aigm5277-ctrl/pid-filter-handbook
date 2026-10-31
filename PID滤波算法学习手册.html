@@ -1,0 +1,4612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PID 控制与滤波算法 · 从基础到工程实战</title>
+<meta name="description" content="交互式 PID 控制与滤波算法学习手册，覆盖 P/I/D 原理、参数整定、抗积分饱和、不完全微分、卡尔曼/陷波滤波等工程实践。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>∿</text></svg>">
+<style>
+/* ========== 基础重置与变量 ========== */
+:root {
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-card: #1a2236;
+  --border: #2a3550;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #7c8aa5;
+  --accent: #00d4ff;
+  --accent-dim: rgba(0, 212, 255, 0.15);
+  --p-color: #ff6b35;
+  --i-color: #4ecdc4;
+  --d-color: #a78bfa;
+  --u-color: #f59e0b;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --sidebar-width: 260px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+code, .mono {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+section, h3 {
+  scroll-margin-top: 20px;
+}
+
+/* ========== 阅读进度条 ========== */
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent);
+  z-index: 300;
+  width: 0%;
+  transition: width 0.1s ease;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* ========== 回到顶部按钮 ========== */
+.back-to-top {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+  z-index: 150;
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-to-top:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 15px var(--accent-dim);
+}
+
+/* ========== 侧边目录 ========== */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 24px 0;
+  overflow-y: auto;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+
+.sidebar-title {
+  padding: 0 20px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 10px 20px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13.5px;
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.sidebar nav a:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.03);
+}
+
+.sidebar nav a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.sidebar nav a.sub {
+  padding-left: 36px;
+  font-size: 12.5px;
+}
+
+/* 移动端遮罩 */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.sidebar-overlay.visible {
+  display: block;
+  opacity: 1;
+}
+
+/* 移动端目录切换按钮 */
+.menu-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 200;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ========== 主内容区 ========== */
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ========== Hero 区 ========== */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  opacity: 0.6;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+}
+
+.hero-tag {
+  display: inline-block;
+  padding: 6px 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 24px;
+  letter-spacing: 1px;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin-bottom: 40px;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.hero-stat {
+  text-align: left;
+}
+
+.hero-stat-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: "SF Mono", monospace;
+}
+
+.hero-stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-muted);
+  font-size: 12px;
+  animation: bounce 2s infinite;
+  z-index: 2;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(8px); }
+}
+
+/* ========== 章节通用样式 ========== */
+.section {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+
+.section-number {
+  font-size: 14px;
+  color: var(--accent);
+  font-family: "SF Mono", monospace;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+.section h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.section h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 32px 0 12px;
+  color: var(--text-primary);
+}
+
+.section h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+  color: var(--text-primary);
+}
+
+.section p {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  font-size: 15.5px;
+}
+
+.section ul, .section ol {
+  color: var(--text-secondary);
+  margin: 12px 0 20px 24px;
+  font-size: 15.5px;
+}
+
+.section li {
+  margin-bottom: 8px;
+}
+
+/* ========== 卡片样式 ========== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  margin: 24px 0;
+}
+
+.card-grid.two-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card-grid.three-col {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  font-family: "SF Mono", monospace;
+}
+
+.card-icon.p { background: rgba(255, 107, 53, 0.15); color: var(--p-color); }
+.card-icon.i { background: rgba(78, 205, 196, 0.15); color: var(--i-color); }
+.card-icon.d { background: rgba(167, 139, 250, 0.15); color: var(--d-color); }
+
+.card h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ========== 公式块 ========== */
+.formula-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 20px 0;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 14.5px;
+  color: var(--accent);
+  overflow-x: auto;
+  line-height: 1.8;
+}
+
+.formula-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  font-family: -apple-system, sans-serif;
+}
+
+/* ========== 代码块 ========== */
+.code-block {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  overflow-x: auto;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #c9d1d9;
+}
+
+.code-block .kw { color: #ff7b72; }
+.code-block .fn { color: #d2a8ff; }
+.code-block .str { color: #a5d6ff; }
+.code-block .cmt { color: #8b949e; }
+.code-block .num { color: #79c0ff; }
+
+/* ========== 交互演示区 ========== */
+.demo-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 28px 0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.demo-panel:hover {
+  border-color: rgba(0, 212, 255, 0.25);
+  box-shadow: 0 6px 32px rgba(0, 212, 255, 0.08);
+}
+
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.demo-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.demo-model {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: "SF Mono", monospace;
+  margin-top: 4px;
+}
+
+.demo-canvas {
+  width: 100%;
+  height: 300px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* 性能指标栏 */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.metric-item {
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: "SF Mono", monospace;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* 滑块控制区 */
+.controls-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.control-item label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.control-item label .value {
+  font-family: "SF Mono", monospace;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.control-item input[type="range"] {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.control-item input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px var(--accent-dim);
+}
+
+.control-item input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px var(--accent-dim);
+}
+
+.control-item input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.control-item input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.control-item.kp input[type="range"]::-webkit-slider-thumb { background: var(--p-color); box-shadow: 0 0 10px rgba(255,107,53,0.3); }
+.control-item.ki input[type="range"]::-webkit-slider-thumb { background: var(--i-color); box-shadow: 0 0 10px rgba(78,205,196,0.3); }
+.control-item.kd input[type="range"]::-webkit-slider-thumb { background: var(--d-color); box-shadow: 0 0 10px rgba(167,139,250,0.3); }
+
+.control-item.kp input[type="range"]::-moz-range-thumb { background: var(--p-color); }
+.control-item.ki input[type="range"]::-moz-range-thumb { background: var(--i-color); }
+.control-item.kd input[type="range"]::-moz-range-thumb { background: var(--d-color); }
+
+/* 开关按钮组 */
+.toggle-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle-item input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 下拉选择 */
+.select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.select-wrap select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.select-wrap select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.demo-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn.primary:hover {
+  opacity: 0.9;
+}
+
+/* ========== 对比表格 ========== */
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+.compare-table th {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  text-align: left;
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom: 2px solid var(--border);
+}
+
+.compare-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.compare-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+
+/* ========== 提示框 ========== */
+.tip-box {
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.tip-box strong {
+  color: var(--accent);
+}
+
+.warning-box {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.warning-box strong {
+  color: var(--warning);
+}
+
+/* ========== 时间线 ========== */
+.timeline {
+  position: relative;
+  padding-left: 40px;
+  margin: 24px 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 28px;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -31px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-dim);
+  box-sizing: border-box;
+}
+
+.timeline-item .time {
+  font-size: 13px;
+  color: var(--accent);
+  font-family: "SF Mono", monospace;
+  margin-bottom: 4px;
+}
+
+.timeline-item h4 {
+  font-size: 16px;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.timeline-item p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ========== 页脚 ========== */
+.footer {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.footer .refs {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* ==========================================================
+   学习辅助层
+   目标条 / 本章小结 / 自测题 / 进度打卡 / 目录搜索 / 字号
+   ========================================================== */
+
+/* ---- 可缩放的字号层级 ---- */
+:root {
+  --fs-base: 15.5px;
+  --fs-small: 14px;
+  --fs-tiny: 13px;
+}
+
+body.text-lg {
+  --fs-base: 16.8px;
+  --fs-small: 15.2px;
+  --fs-tiny: 14.2px;
+}
+
+body.text-xl {
+  --fs-base: 18px;
+  --fs-small: 16.2px;
+  --fs-tiny: 15px;
+}
+
+.section p,
+.section li { font-size: var(--fs-base); }
+.card p,
+.tip-box,
+.warning-box,
+.compare-table,
+.formula-block { font-size: var(--fs-small); }
+.takeaways li,
+.quiz-answer,
+.quiz-item summary { font-size: var(--fs-small); }
+
+kbd {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* ---- 侧栏：改为纵向弹性布局 ---- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 12px;
+  overflow: hidden;
+}
+
+.sidebar-title { flex: 0 0 auto; }
+
+.sidebar nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.sidebar nav::-webkit-scrollbar { width: 6px; }
+.sidebar nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ---- 学习进度 ---- */
+.study-panel {
+  flex: 0 0 auto;
+  padding: 0 20px 12px;
+}
+
+.study-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.study-progress-head span:last-child {
+  font-family: "SF Mono", monospace;
+  color: var(--accent);
+}
+
+.study-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.study-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--i-color));
+  transition: width 0.35s ease;
+}
+
+.study-reset {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.study-reset:hover { color: var(--danger); }
+
+/* ---- 目录搜索 ---- */
+.toc-search {
+  flex: 0 0 auto;
+  padding: 0 16px 12px;
+}
+
+.toc-search input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.toc-search input:focus { border-color: var(--accent); }
+.toc-search input::placeholder { color: var(--text-muted); }
+
+/* ---- 章节打卡按钮 ---- */
+.toc-chapter { position: relative; }
+.toc-chapter > a { padding-right: 48px; }
+
+.toc-chapter.done > a { color: var(--success); }
+
+.nav-check {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.nav-check::after {
+  content: "✓";
+  font-size: 11px;
+  line-height: 1;
+  color: transparent;
+}
+
+.nav-check:hover { border-color: var(--accent); }
+
+.nav-check.done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.nav-check.done::after { color: #04211a; }
+
+.nav-check:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toc-hidden { display: none !important; }
+
+/* ---- 侧栏底部：字号 ---- */
+.sidebar-tools {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  padding: 14px 16px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sidebar-tools .label { margin-right: auto; }
+
+.sidebar-tools button {
+  min-width: 30px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-tools button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sidebar-tools .font-level {
+  min-width: 34px;
+  text-align: center;
+  font-family: "SF Mono", monospace;
+  color: var(--accent);
+}
+
+/* ---- 章节学习目标 ---- */
+.chapter-goal {
+  margin: 22px 0 28px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.09), rgba(0, 212, 255, 0.02));
+}
+
+.chapter-goal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+.time-badge {
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: "SF Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+.chapter-goal ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.chapter-goal li {
+  position: relative;
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.chapter-goal li::before {
+  content: "▸";
+  position: absolute;
+  left: 4px;
+  color: var(--accent);
+}
+
+/* ---- 章末：小结 / 自测 / 导航 ---- */
+.chapter-footer {
+  margin-top: 44px;
+  padding-top: 4px;
+}
+
+.takeaways {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--success);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+
+.takeaways h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--success);
+}
+
+.takeaways ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.takeaways li {
+  position: relative;
+  margin: 0;
+  padding-left: 24px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.takeaways li::before {
+  content: "✓";
+  position: absolute;
+  left: 2px;
+  font-size: 12px;
+  color: var(--success);
+  opacity: 0.9;
+}
+
+.quiz { margin-bottom: 24px; }
+
+.quiz-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.quiz-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.quiz-head .tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.quiz-toggle {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quiz-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.quiz-item {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.quiz-item summary {
+  position: relative;
+  padding: 12px 92px 12px 18px;
+  list-style: none;
+  line-height: 1.6;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.quiz-item summary::-webkit-details-marker { display: none; }
+
+.quiz-item summary::after {
+  content: "展开答案";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.quiz-item[open] summary::after {
+  content: "收起";
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.quiz-item summary:hover { background: rgba(0, 212, 255, 0.05); }
+
+.quiz-answer {
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--border);
+  line-height: 1.75;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.quiz-answer strong { color: var(--accent); }
+
+.chapter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.btn.mark-done.done {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+}
+
+.chapter-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--border);
+}
+
+.chapter-nav a {
+  max-width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.chapter-nav a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chapter-nav a.next { margin-left: auto; }
+
+/* ---- 使用指南 ---- */
+.guide { padding: 0 0 72px; }
+
+.guide h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.guide-intro {
+  margin-bottom: 22px;
+  font-size: var(--fs-small);
+  color: var(--text-secondary);
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.guide-card {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.guide-card:hover {
+  border-color: rgba(0, 212, 255, 0.45);
+  transform: translateY(-2px);
+}
+
+.guide-card .num {
+  font-family: "SF Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+.guide-card h4 {
+  margin: 8px 0 6px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.guide-card p {
+  margin: 0;
+  font-size: var(--fs-tiny);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* ---- 速查卡 ---- */
+.cheat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 20px 0 8px;
+}
+
+.cheat-item {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+
+.cheat-item h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.cheat-item code {
+  display: block;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cheat-item small {
+  display: block;
+  margin-top: 10px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .menu-toggle {
+    display: flex;
+  }
+  .main-content {
+    margin-left: 0;
+  }
+  .container {
+    padding: 0 20px;
+  }
+  .hero {
+    padding-top: 60px;
+  }
+  .section {
+    padding: 56px 0;
+  }
+  .controls-row {
+    grid-template-columns: 1fr;
+  }
+  .card-grid.two-col,
+  .card-grid.three-col {
+    grid-template-columns: 1fr;
+  }
+  section, h3 {
+    scroll-margin-top: 70px;
+  }
+}
+
+/* 低动效模式 */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { animation: none !important; transition: none !important; }
+}
+
+/* 打印样式 */
+@media print {
+  .sidebar, .menu-toggle, .back-to-top, .progress-bar, .sidebar-overlay {
+    display: none !important;
+  }
+  .main-content {
+    margin-left: 0;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .demo-panel, .card, .formula-block, .code-block {
+    break-inside: avoid;
+  }
+}
+/* ========== 学习辅助：窄屏 ========== */
+@media (max-width: 900px) {
+  .sidebar { padding: 16px 0 10px; }
+  /* 让侧栏标题避开左上角的目录按钮 */
+  .sidebar-title { padding-left: 76px; }
+  .chapter-goal { padding: 14px 16px; }
+  .quiz-item summary { padding-right: 76px; }
+  .chapter-nav a { flex: 1 1 100%; text-align: center; }
+  .chapter-nav a.next { margin-left: 0; }
+  .guide { padding-bottom: 48px; }
+}
+
+/* ========== 学习辅助：打印（浅色、展开答案） ========== */
+@media print {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --border: #c9d1d9;
+    --text-primary: #111827;
+    --text-secondary: #374151;
+    --text-muted: #6b7280;
+    --accent: #0b5cad;
+  }
+
+  .study-panel, .toc-search, .sidebar-tools, .nav-check, .quiz-toggle,
+  .guide, .chapter-actions, .chapter-nav, .demo-buttons { display: none !important; }
+
+  .hero { min-height: auto; padding: 20px 0 24px; }
+  .hero-canvas-wrap, .scroll-hint, .demo-canvas,
+  .metrics-row, .controls-row { display: none !important; }
+
+  .chapter-goal, .takeaways, .quiz-answer { background: #f6f9fc !important; }
+  .chapter-footer { break-inside: avoid; }
+  .quiz-item { break-inside: avoid; }
+
+  .code-block {
+    background: #f6f8fa !important;
+    border-color: #c9d1d9 !important;
+    color: #1f2328 !important;
+  }
+  .code-block .kw { color: #cf222e !important; }
+  .code-block .fn { color: #8250df !important; }
+  .code-block .str { color: #0a3069 !important; }
+  .code-block .cmt { color: #6e7781 !important; }
+  .code-block .num { color: #0550ae !important; }
+
+  .compare-table th { background: #eef2f7 !important; color: #0b5cad !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- 阅读进度条 -->
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- 移动端目录按钮 -->
+<button class="menu-toggle" id="menuToggle" aria-label="打开目录" aria-expanded="false">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"></line>
+    <line x1="3" y1="12" x2="21" y2="12"></line>
+    <line x1="3" y1="18" x2="21" y2="18"></line>
+  </svg>
+</button>
+
+<!-- 移动端遮罩 -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- 侧边目录 -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-title">PID 控制与滤波算法</div>
+
+  <div class="study-panel">
+    <div class="study-progress-head">
+      <span>学习进度</span>
+      <span id="studyProgressText">0 / 9 章</span>
+    </div>
+    <div class="study-progress-track" id="studyProgressBar" role="progressbar"
+         aria-label="学习进度" aria-valuemin="0" aria-valuemax="9" aria-valuenow="0">
+      <div class="study-progress-fill" id="studyProgressFill"></div>
+    </div>
+    <button type="button" class="study-reset" id="studyReset">清空进度</button>
+  </div>
+
+  <div class="toc-search">
+    <input type="search" id="tocSearch" placeholder="搜索章节…（/）" aria-label="搜索章节目录">
+  </div>
+
+  <nav id="tocNav" aria-label="章节目录">
+    <a href="#hero" class="active">首页概览</a>
+    <a href="#guide">使用指南</a>
+
+    <div class="toc-chapter">
+      <a href="#sec1">01 · PID 控制基础</a>
+      <button type="button" class="nav-check" data-chapter="sec1" aria-pressed="false" title="标记第 1 章已学完" aria-label="标记第 1 章已学完"></button>
+    </div>
+    <a href="#sec1-1" class="sub">1.1 什么是反馈控制</a>
+    <a href="#sec1-2" class="sub">1.2 P / I / D 各自的作用</a>
+
+    <div class="toc-chapter">
+      <a href="#sec2">02 · PID 数学模型</a>
+      <button type="button" class="nav-check" data-chapter="sec2" aria-pressed="false" title="标记第 2 章已学完" aria-label="标记第 2 章已学完"></button>
+    </div>
+    <a href="#sec2-1" class="sub">2.1 时域表达式</a>
+    <a href="#sec2-2" class="sub">2.2 位置式 vs 增量式</a>
+    <a href="#sec2-3" class="sub">2.3 传递函数</a>
+
+    <div class="toc-chapter">
+      <a href="#sec3">03 · 交互仿真实验</a>
+      <button type="button" class="nav-check" data-chapter="sec3" aria-pressed="false" title="标记第 3 章已学完" aria-label="标记第 3 章已学完"></button>
+    </div>
+
+    <div class="toc-chapter">
+      <a href="#sec4">04 · 参数整定方法</a>
+      <button type="button" class="nav-check" data-chapter="sec4" aria-pressed="false" title="标记第 4 章已学完" aria-label="标记第 4 章已学完"></button>
+    </div>
+    <a href="#sec4-1" class="sub">4.1 Ziegler-Nichols 法</a>
+    <a href="#sec4-2" class="sub">4.2 继电反馈整定</a>
+    <a href="#sec4-3" class="sub">4.3 经验试凑法</a>
+
+    <div class="toc-chapter">
+      <a href="#sec5">05 · 滤波算法基础</a>
+      <button type="button" class="nav-check" data-chapter="sec5" aria-pressed="false" title="标记第 5 章已学完" aria-label="标记第 5 章已学完"></button>
+    </div>
+    <a href="#sec5-1" class="sub">5.1 为什么需要滤波</a>
+    <a href="#sec5-2" class="sub">5.2 常见滤波器</a>
+    <a href="#sec5-3" class="sub">5.3 低通参数换算</a>
+    <a href="#sec5-4" class="sub">5.4 滤波算法工作台</a>
+
+    <div class="toc-chapter">
+      <a href="#sec6">06 · PID + 滤波组合</a>
+      <button type="button" class="nav-check" data-chapter="sec6" aria-pressed="false" title="标记第 6 章已学完" aria-label="标记第 6 章已学完"></button>
+    </div>
+    <a href="#sec6-1" class="sub">6.1 典型滤波位置</a>
+    <a href="#sec6-2" class="sub">6.2 抗积分饱和</a>
+    <a href="#sec6-3" class="sub">6.3 不完全微分</a>
+
+    <div class="toc-chapter">
+      <a href="#sec7">07 · 高级 PID 算法</a>
+      <button type="button" class="nav-check" data-chapter="sec7" aria-pressed="false" title="标记第 7 章已学完" aria-label="标记第 7 章已学完"></button>
+    </div>
+
+    <div class="toc-chapter">
+      <a href="#sec8">08 · 工程实战案例</a>
+      <button type="button" class="nav-check" data-chapter="sec8" aria-pressed="false" title="标记第 8 章已学完" aria-label="标记第 8 章已学完"></button>
+    </div>
+
+    <div class="toc-chapter">
+      <a href="#appendix">附录 · C 代码实现</a>
+      <button type="button" class="nav-check" data-chapter="appendix" aria-pressed="false" title="标记附录已读" aria-label="标记附录已读"></button>
+    </div>
+    <a href="#glossary" class="sub">附 A · 术语速查表</a>
+    <a href="#cheatsheet" class="sub">附 B · 公式速查卡</a>
+    <a href="#faq" class="sub">附 C · 常见问题</a>
+  </nav>
+
+  <div class="sidebar-tools">
+    <span class="label">阅读字号</span>
+    <button type="button" id="fontDown" title="调小字号" aria-label="调小字号">A−</button>
+    <span class="font-level" id="fontTip">标准</span>
+    <button type="button" id="fontUp" title="调大字号" aria-label="调大字号">A+</button>
+  </div>
+</aside>
+
+<!-- 回到顶部 -->
+<button class="back-to-top" id="backToTop" aria-label="回到顶部">↑</button>
+
+<!-- 主内容 -->
+<main class="main-content">
+
+  <!-- ===== Hero 区 ===== -->
+  <section class="hero" id="hero">
+    <div class="hero-canvas-wrap">
+      <canvas id="heroCanvas" role="img" aria-label="PID 阶跃响应动态曲线"></canvas>
+    </div>
+    <div class="container hero-content">
+      <div class="hero-tag">控制工程 · 交互式学习手册</div>
+      <h1>PID 控制与滤波算法<br>从入门到工程实战</h1>
+      <p class="hero-subtitle">
+        系统理解比例-积分-微分控制的底层逻辑，掌握常用滤波算法如何与 PID 协同工作，
+        通过交互式仿真亲手调参，建立从理论到实践的完整认知。
+      </p>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-num">9</div>
+          <div class="hero-stat-label">核心章节</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num">2</div>
+          <div class="hero-stat-label">交互仿真实验</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-num">10+</div>
+          <div class="hero-stat-label">工程案例</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-hint">向下滚动开始学习 ↓</div>
+  </section>
+
+  <!-- ===== 使用指南 ===== -->
+  <section class="guide" id="guide">
+    <div class="container">
+      <div class="section-number">HOW TO LEARN</div>
+      <h2>怎么用这本手册，效率最高</h2>
+      <p class="guide-intro">
+        手册按「先动手、后推导」的顺序编排：每章开头写明这一章要掌握什么，结尾给小结、自测题和打卡按钮。
+        下面四步是推荐的学习节奏。
+      </p>
+
+      <div class="guide-grid">
+        <div class="guide-card">
+          <div class="num">STEP 01</div>
+          <h4>带着目标读，读完打卡</h4>
+          <p>
+            每章的<strong>学习目标</strong>就是验收标准。读完点侧栏章节右侧的圆圈，进度会存在浏览器本地，
+            关掉页面下次打开还在（只在本机，不上传）。
+          </p>
+        </div>
+        <div class="guide-card">
+          <div class="num">STEP 02</div>
+          <h4>公式看不懂，就去拖滑块</h4>
+          <p>
+            第 3 章有 PID 阶跃响应仿真台，第 5 章有滤波算法工作台。先调参建立手感，
+            再回头看传递函数，理解会快很多。
+          </p>
+        </div>
+        <div class="guide-card">
+          <div class="num">STEP 03</div>
+          <h4>读完立刻自测</h4>
+          <p>
+            章末的<strong>自测题</strong>先自己口述答案，再展开对照。答不上来就说明这一章没吃透，
+            回去补一遍比继续往前读更省时间。
+          </p>
+        </div>
+        <div class="guide-card">
+          <div class="num">STEP 04</div>
+          <h4>复习用速查表</h4>
+          <p>
+            附录里的术语表、公式卡、常见问题，适合二刷、面试前和现场调试时快速索引；
+            目录上方的搜索框可以直接按关键词过滤章节。
+          </p>
+        </div>
+      </div>
+
+      <div class="tip-box" style="margin-top: 20px;">
+        <strong>小技巧：</strong>按 <kbd>/</kbd> 直接聚焦目录搜索，<kbd>Esc</kbd> 退出；
+        在目录里勾掉已学章节，顶部进度条会告诉你还剩多少；
+        通读一遍大约 1.5 小时，跟着做仿真和自测大约 4~6 小时。
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第一章 ===== -->
+  <section class="section" id="sec1">
+    <div class="container">
+      <div class="section-number">CHAPTER 01</div>
+      <h2>PID 控制基础</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 8 分钟</span></div>
+        <ul>
+          <li>说清闭环控制里「测量 → 比较 → 调整」这个循环</li>
+          <li>分别说出 P、I、D 解决什么问题、又带来什么副作用</li>
+          <li>判断一个场景值不值得上 PID</li>
+        </ul>
+      </div>
+
+      <h3 id="sec1-1">什么是反馈控制</h3>
+      <p>
+        PID 控制是工业界应用最广泛的自动控制算法，没有之一。从微波炉的温度控制到无人机的姿态稳定，
+        从机械臂的精准定位到化工反应釜的压力调节，PID 算法无处不在。
+      </p>
+      <p>
+        它的核心思想非常朴素：<strong>测量实际值 → 与目标值比较 → 根据误差大小和趋势调整输出</strong>，
+        形成一个闭环。这个"根据误差调整输出"的规则，就是 PID 控制器。
+      </p>
+
+      <div class="formula-block">
+        误差 e(t) = 目标值 r(t) - 实际测量值 y(t)
+      </div>
+
+      <h3 id="sec1-2">P / I / D 各自的作用</h3>
+      <p>PID 三个字分别代表三种对误差的处理方式，它们各有分工，组合起来就是一个完整的控制策略：</p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon p">P</div>
+          <h4>比例项 (Proportional)</h4>
+          <p>
+            对当前误差做出即时反应。误差越大，输出越强。
+            相当于"看到偏差就使劲追"。但单纯的 P 控制永远消除不了稳态误差。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon i">I</div>
+          <h4>积分项 (Integral)</h4>
+          <p>
+            对过去所有误差的累积求和。只要还有一点残余误差，积分就会持续推动输出，
+            直到误差归零。它负责消除稳态误差，但会引入超调和滞后。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon d">D</div>
+          <h4>微分项 (Derivative)</h4>
+          <p>
+            预测误差的变化趋势，相当于"提前刹车"。误差正在快速变小时，
+            D 项会提前减弱输出，抑制超调。但它对噪声极其敏感，通常需要配合滤波使用。
+          </p>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>直观理解：</strong>想象你在开车跟车——P 是"距离前车太远就踩油门、太近就踩刹车"；
+        I 是"发现一直偏慢就悄悄多给点油"；D 是"看到前车距离正在快速拉近就提前松油门"。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>PID 的本质：对同一个误差信号做三种运算再加权求和——P 看现在、I 看过去、D 看未来。</li>
+            <li>P 决定反应速度，I 决定最终精度，D 决定过程平稳度，三者缺一都有明显短板。</li>
+            <li>只有 P 时稳态误差一定存在；只有 I 时响应偏慢、容易超调；D 单独使用没有意义。</li>
+            <li>前提是有闭环：能测量、能执行、能比较。缺任何一环，PID 都无从谈起。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　只有 P 控制时，稳态误差为什么消不掉？</summary>
+            <div class="quiz-answer">
+              稳态时若误差 e = 0，则输出 u = Kp·e = 0；但维持被控量（比如保持恒温）需要非零输出，两者矛盾。
+              所以系统最终停在 u<sub>需要</sub> = Kp·e 上，稳态误差 e = u<sub>需要</sub>/Kp，永远不为零——
+              Kp 越大只是让它<strong>更小</strong>而已。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　积分明明在"消除误差"，为什么反而容易造成超调？</summary>
+            <div class="quiz-answer">
+              积分累积的是<strong>历史误差</strong>。当误差已经反号、系统正在往回走时，积分项里还存着正向累积量，
+              继续把输出往前推，于是冲过头。这正是第 6 章要讲抗积分饱和、积分分离的原因。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　什么情况下应该直接把 D 关掉？</summary>
+            <div class="quiz-answer">
+              ① 传感器噪声大或分辨率低（量化台阶明显）；② 大惯性、纯滞后系统，误差变化率长期接近 0，
+              D 提供不了有效预测；③ 设定值频繁跳变，D 会打出尖峰。工业上大量温度回路确实只用 PI。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec1">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#guide">← 使用指南</a>
+          <a href="#sec2" class="next">02 · PID 数学模型 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第二章 ===== -->
+  <section class="section" id="sec2">
+    <div class="container">
+      <div class="section-number">CHAPTER 02</div>
+      <h2>PID 数学模型</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 12 分钟</span></div>
+        <ul>
+          <li>写出 PID 的时域表达式与传递函数</li>
+          <li>分清位置式与增量式的输出含义、适用场合</li>
+          <li>从频率特性上解释「D 项为什么必须滤波」</li>
+        </ul>
+      </div>
+
+      <h3 id="sec2-1">时域表达式</h3>
+      <p>PID 控制器的输出 u(t) 是误差 e(t) 经过三种运算后的加权和：</p>
+
+      <div class="formula-block">
+        u(t) = Kp · e(t) + Ki · ∫e(t)dt + Kd · de(t)/dt
+        <div class="formula-note">
+          Kp：比例增益 &nbsp;|&nbsp; Ki：积分增益 &nbsp;|&nbsp; Kd：微分增益
+        </div>
+      </div>
+
+      <p>在数字控制系统（MCU/PLC）中，采样是离散的，所以用差分形式实现。根据输出计算方式，分为两种基本结构：</p>
+
+      <h3 id="sec2-2">位置式 vs 增量式 PID</h3>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>对比项</th>
+            <th>位置式 PID</th>
+            <th>增量式 PID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>输出含义</td>
+            <td>全量输出 u(k)，直接对应执行机构位置</td>
+            <td>增量 Δu(k)，在上次输出基础上叠加</td>
+          </tr>
+          <tr>
+            <td>积分饱和</td>
+            <td>容易积累误差，需专门抗饱和处理</td>
+            <td>天然抗积分饱和，误差只影响当前增量</td>
+          </tr>
+          <tr>
+            <td>切换冲击</td>
+            <td>手动↔自动切换时输出突变大</td>
+            <td>切换扰动小，平滑过渡</td>
+          </tr>
+          <tr>
+            <td>故障影响</td>
+            <td>计算错误导致输出大幅变化</td>
+            <td>错误只影响一步，影响范围小</td>
+          </tr>
+          <tr>
+            <td>典型应用</td>
+            <td>温度、压力等连续量控制</td>
+            <td>步进电机、阀门开度等增量执行机构</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="formula-block">
+        <div style="margin-bottom: 12px;">
+          <strong style="color: var(--p-color);">位置式：</strong>
+          u(k) = Kp·e(k) + Ki·Σe(i)·Δt + Kd·[e(k) - e(k-1)] / Δt
+        </div>
+        <div>
+          <strong style="color: var(--i-color);">增量式：</strong>
+          Δu(k) = Kp·[e(k)-e(k-1)] + Ki·e(k)·Δt + Kd·[e(k)-2e(k-1)+e(k-2)] / Δt
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>选型建议：</strong>如果执行机构本身有记忆（如步进电机走一步转一点、阀门保持开度），
+        优先用增量式；如果执行机构需要绝对位置（如电加热功率、调节阀），用位置式。
+      </div>
+
+      <h3 id="sec2-3">传递函数</h3>
+      <p>在频域分析中，PID 控制器的传递函数为：</p>
+
+      <div class="formula-block">
+        G<sub>c</sub>(s) = Kp + Ki/s + Kd·s = (Kd·s² + Kp·s + Ki) / s
+      </div>
+
+      <p>这个传递函数告诉我们：</p>
+      <ul>
+        <li><strong>比例环节</strong>：所有频率都有增益，是最基础的控制作用</li>
+        <li><strong>积分环节</strong>：低频增益无穷大（消除稳态误差），高频段幅值衰减（对快速变化不敏感）</li>
+        <li><strong>微分环节</strong>：高频增益大（预测趋势），但也意味着它会放大高频噪声</li>
+      </ul>
+
+      <div class="warning-box">
+        <strong>注意：</strong>微分项对测量噪声极其敏感。如果传感器数据有毛刺，
+        D 项会把这些毛刺放大成剧烈的输出波动——这就是为什么实际工程中
+        <strong>微分前必须加低通滤波</strong>，也是"PID 与滤波"这个组合存在的根本原因。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>连续域 u = Kp·e + Ki∫e dt + Kd·de/dt；离散化时 Δt 必须显式写出来，否则量纲会错。</li>
+            <li>位置式输出绝对量，增量式输出变化量：增量式天然抗饱和、切换冲击小、单次算错影响也只限一步。</li>
+            <li>G<sub>c</sub>(s) = Kp + Ki/s + Kd·s：积分环节低频增益无穷大（消静差），微分环节高频增益无穷大（放大噪声）。</li>
+            <li>两套参数记法：Kp/Ki/Kd 与 Kp/Ti/Td，换算关系 Ki = Kp/Ti、Kd = Kp·Td。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　执行机构是步进电机（走一步转一点、本身有位置记忆），选位置式还是增量式？</summary>
+            <div class="quiz-answer">
+              选<strong>增量式</strong>。它算出来的 Δu 正好对应"再走几步"，和步进电机的输入天然匹配；
+              而且天然抗饱和、断电或切换时冲击小。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　增量式公式里为什么会出现 e(k−2)？</summary>
+            <div class="quiz-answer">
+              因为微分项 Kd·de/dt 被<strong>再做了一次差分</strong>（求增量），变成了二阶差分：
+              Δ[e(k) − e(k−1)] = e(k) − 2e(k−1) + e(k−2)。所以要用到前两个采样时刻的误差。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　已知 Kp = 2.4、Ki = 0.6，换算成积分时间 Ti 是多少？</summary>
+            <div class="quiz-answer">
+              由 Ki = Kp/Ti 得 Ti = Kp/Ki = 2.4/0.6 = <strong>4 s</strong>。
+              积分时间越大，积分作用越弱、响应越慢。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec2">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec1">← 01 · PID 控制基础</a>
+          <a href="#sec3" class="next">03 · 交互仿真实验 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第三章：交互仿真 ===== -->
+  <section class="section" id="sec3">
+    <div class="container">
+      <div class="section-number">CHAPTER 03</div>
+      <h2>交互式 PID 仿真实验</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 15 分钟</span></div>
+        <ul>
+          <li>亲手拖动 Kp / Ki / Kd，建立「参数 → 曲线形状」的直觉</li>
+          <li>看懂超调量、上升时间、调节时间、稳态误差四个指标</li>
+          <li>观察注入噪声前后，D 项输出的剧烈变化</li>
+        </ul>
+      </div>
+
+      <p>
+        下面是一个实时 PID 阶跃响应仿真器。拖动滑块调整 Kp、Ki、Kd 三个参数，
+        观察系统响应曲线的变化——这是理解 PID 最直观的方式。
+      </p>
+
+      <div class="demo-panel">
+        <div class="demo-header">
+          <div>
+            <div class="demo-title">二阶系统 PID 阶跃响应仿真</div>
+            <div class="demo-model">被控对象：G(s) = ωn² / (s² + 2ζωn·s + ωn²)，ωn=2.0, ζ=0.35</div>
+          </div>
+          <div class="demo-buttons">
+            <button class="btn primary" id="simReset">重新运行</button>
+            <button class="btn" id="simPause">暂停</button>
+            <button class="btn" id="presetP">纯 P</button>
+            <button class="btn" id="presetPI">PI 控制</button>
+            <button class="btn" id="presetPID">PID 整定</button>
+          </div>
+        </div>
+
+        <canvas id="pidCanvas" class="demo-canvas" role="img" aria-label="PID 阶跃响应曲线实时仿真"></canvas>
+
+        <!-- 性能指标 -->
+        <div class="metrics-row" id="metricsRow">
+          <div class="metric-item">
+            <div class="metric-value" id="ovMetric">--</div>
+            <div class="metric-label">超调量 σ%</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="rtMetric">--</div>
+            <div class="metric-label">上升时间 (s)</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="stMetric">--</div>
+            <div class="metric-label">调节时间 (s)</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-value" id="ssMetric">--</div>
+            <div class="metric-label">稳态误差</div>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="control-item kp">
+            <label>Kp 比例增益 <span class="value" id="kpVal">2.0</span></label>
+            <input type="range" id="kpSlider" min="0" max="10" step="0.1" value="2" aria-valuetext="比例增益">
+          </div>
+          <div class="control-item ki">
+            <label>Ki 积分增益 <span class="value" id="kiVal">0.5</span></label>
+            <input type="range" id="kiSlider" min="0" max="5" step="0.05" value="0.5" aria-valuetext="积分增益">
+          </div>
+          <div class="control-item kd">
+            <label>Kd 微分增益 <span class="value" id="kdVal">0.2</span></label>
+            <input type="range" id="kdSlider" min="0" max="3" step="0.02" value="0.2" aria-valuetext="微分增益">
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-item">
+            <input type="checkbox" id="showComponents">
+            显示 P/I/D 分项曲线
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="showNoise">
+            注入测量噪声
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="showFilter">
+            输入低通滤波
+          </label>
+          <div class="select-wrap">
+            输入类型：
+            <select id="inputType">
+              <option value="step">阶跃</option>
+              <option value="square">方波</option>
+              <option value="sine">正弦跟踪</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; font-size: 13px; color: var(--text-muted);">
+          蓝线 = 实际输出 &nbsp;|&nbsp; 绿虚线 = 目标值 &nbsp;|&nbsp; 橙线 = 控制输出 u(t)<br>
+          分项曲线：橙=P项 &nbsp;|&nbsp; 青=I项 &nbsp;|&nbsp; 紫=D项
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>实验建议：</strong>
+        <br>① 先把 Ki、Kd 都设为 0，只调 Kp —— 观察稳态误差的存在；
+        <br>② 慢慢加 Ki —— 看稳态误差如何被消除，同时超调如何变大；
+        <br>③ 再加 Kd —— 看超调如何被抑制，响应如何变快；
+        <br>④ 打开"注入噪声"再看 —— 体会为什么 D 项前必须加滤波。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>增大 Kp：响应变快、超调变大，增益过高会等幅振荡甚至发散。</li>
+            <li>增大 Ki：稳态误差被消除，代价是超调变大、调节时间变长。</li>
+            <li>增大 Kd：抑制超调、加快收敛，代价是把测量噪声放大成输出抖动。</li>
+            <li>四个指标互相牵制，整定的本质是取舍，不存在"全部最优"。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　把 Kp 从 2 加到 8，曲线最可能怎么变？</summary>
+            <div class="quiz-answer">
+              上升时间明显变短、超调变大，继续加会进入高频振荡；稳态误差会减小，但不会变成 0
+              （除非有积分项）。可以回到仿真器上验证一下。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　打开"注入噪声"后，Kd 越大反而抖得越厉害，为什么？</summary>
+            <div class="quiz-answer">
+              D 项对测量值做差商，而噪声<strong>每次采样都在跳变</strong>，差商把它放大成巨大的控制量，
+              执行机构跟着抖。正解是给输入加低通，或改用第 6 章的不完全微分——对微分本身滤波。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　超调量和调节时间能同时调到最优吗？</summary>
+            <div class="quiz-answer">
+              一般不能，它们是一对矛盾指标。想要又快又稳，只能在<strong>快速性、平稳性、精度</strong>之间找平衡点，
+              还要留出足够稳定裕度——这也是为什么整定最后总要靠现场试凑。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec3">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec2">← 02 · PID 数学模型</a>
+          <a href="#sec4" class="next">04 · 参数整定方法 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第四章 ===== -->
+  <section class="section" id="sec4">
+    <div class="container">
+      <div class="section-number">CHAPTER 04</div>
+      <h2>参数整定方法</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 12 分钟</span></div>
+        <ul>
+          <li>独立完成一次临界比例度法：实测 Ku、Tu，查表算参数</li>
+          <li>按「先 P、后 I、再 D」的顺序试凑</li>
+          <li>根据系统时间常数选定采样周期</li>
+        </ul>
+      </div>
+
+      <p>
+        PID 控制器好不好用，90% 取决于参数调得好不好。同一个算法，
+        参数不对可能导致系统震荡甚至失控，参数对了就能稳定精准地控制。
+      </p>
+
+      <h3 id="sec4-1">Ziegler-Nichols 临界比例度法</h3>
+      <p>这是最经典的工程整定方法，由齐格勒和尼科尔斯在 1942 年提出：</p>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="time">步骤 1</div>
+          <h4>设置纯比例控制</h4>
+          <p>将 Ki 和 Kd 设为 0，只保留比例控制。从较小的 Kp 开始。</p>
+        </div>
+        <div class="timeline-item">
+          <div class="time">步骤 2</div>
+          <h4>逐渐增大 Kp</h4>
+          <p>不断增大比例增益，直到系统输出出现<strong>等幅持续振荡</strong>。此时的 Kp 记为临界增益 Ku，振荡周期记为 Tu。</p>
+        </div>
+        <div class="timeline-item">
+          <div class="time">步骤 3</div>
+          <h4>按公式查表计算参数</h4>
+          <p>根据控制器类型（P / PI / PID），按下表公式计算三个参数的初始值。</p>
+        </div>
+      </div>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>控制器类型</th>
+            <th>Kp</th>
+            <th>Ki (积分增益)</th>
+            <th>Kd</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>P</td>
+            <td>0.5 · Ku</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>PI</td>
+            <td>0.45 · Ku</td>
+            <td>0.54 · Ku / Tu</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>PID</td>
+            <td>0.6 · Ku</td>
+            <td>1.2 · Ku / Tu</td>
+            <td>0.075 · Ku · Tu</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="formula-note" style="margin-top: -12px; margin-bottom: 20px;">
+        注：Ki = Kp / Ti，Ti 为积分时间；Z-N 整定下超调通常约 25%，可将 Kp 再降 20%~30% 以获得更平稳的响应。
+      </div>
+
+      <h3 id="sec4-2">继电反馈整定（Åström-Hägglund）</h3>
+      <p>
+        现代 PLC 和变频器中常用的自动整定方法。控制器输出在两个固定值之间来回切换（继电特性），
+        让系统产生极限环振荡，然后从振荡幅度和周期自动计算 Ku 和 Tu。
+      </p>
+      <p>
+        相比 Z-N 手动法，它更安全（振荡幅度可控）、更省时，是工业现场的首选自动整定方案。
+      </p>
+
+      <h3 id="sec4-3">经验试凑法</h3>
+      <p>工程中更常用的是"先 P 后 I 再 D"的试凑顺序：</p>
+      <ul>
+        <li><strong>第一步调 P：</strong>从大到小调整，直到响应快但有轻微超调</li>
+        <li><strong>第二步加 I：</strong>从小到大加入积分，直到稳态误差消除且超调可接受</li>
+        <li><strong>第三步加 D：</strong>加入微分抑制超调，让响应更平稳</li>
+      </ul>
+
+      <div class="tip-box">
+        <strong>整定口诀：</strong>
+        <br>参数整定找最佳，从小到大顺序查；
+        <br>先是比例后积分，最后再把微分加。
+      </div>
+
+      <h4>采样周期怎么选？</h4>
+      <p>
+        采样周期 Ts 是数字 PID 的关键参数。太大控制粗糙，太小浪费 CPU 且可能放大噪声。
+        经验法则：<strong>Ts ≈ (1/10 ~ 1/20) × 系统主导时间常数</strong>。
+      </p>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>Z-N 临界比例度法：只留 P，加到等幅振荡，读出 Ku 与 Tu，查表得初值。</li>
+            <li>Z-N 参数偏激进（超调约 25%），工程上常再把 Kp 降 20%~30%。</li>
+            <li>继电反馈整定 = 自动化的 Z-N：振荡幅度预先可控，现场更安全，是 PLC/变频器的标配功能。</li>
+            <li>采样周期 Ts ≈ (1/10 ~ 1/20) × 主导时间常数，不是越小越好。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　实测临界增益 Ku = 8、振荡周期 Tu = 2 s，用 Z-N 公式给 PID 初值</summary>
+            <div class="quiz-answer">
+              Kp = 0.6 × 8 = <strong>4.8</strong>；Ki = 1.2 × 8 / 2 = <strong>4.8</strong>；
+              Kd = 0.075 × 8 × 2 = <strong>1.2</strong>。
+              这是"激进"初值，实际可把 Kp 降到 3.4~3.8 再微调，超调会小很多。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　为什么继电反馈整定比手动 Z-N 更安全？</summary>
+            <div class="quiz-answer">
+              手动 Z-N 要一直把 Kp 往上推到<strong>等幅振荡边缘</strong>，稍不留神就发散；
+              继电反馈的振荡幅度由继电输出的幅值决定，可以预先设得很小，而且全程自动，不用人守着。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　采样周期是不是越小越好？</summary>
+            <div class="quiz-answer">
+              不是。太小会让差分噪声被放大、白耗 CPU，还可能让量化噪声与计算延迟占主导。
+              按主导时间常数的 1/10 ~ 1/20 取，既够快又稳。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec4">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec3">← 03 · 交互仿真实验</a>
+          <a href="#sec5" class="next">05 · 滤波算法基础 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第五章 ===== -->
+  <section class="section" id="sec5">
+    <div class="container">
+      <div class="section-number">CHAPTER 05</div>
+      <h2>滤波算法基础</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 15 分钟</span></div>
+        <ul>
+          <li>说清滤波的收益（抑制噪声）和代价（相位滞后）</li>
+          <li>在 α、τ、fc 三个参数之间自由换算</li>
+          <li>针对尖峰、单频干扰、白噪声分别选对滤波器</li>
+        </ul>
+      </div>
+
+      <h3 id="sec5-1">为什么需要滤波</h3>
+      <p>
+        真实世界的传感器数据从来不是干净的。温度传感器有热噪声，电流采样有纹波，
+        陀螺仪有零漂和高频抖动。如果把这些带噪声的数据直接送进 PID 控制器，
+        尤其是微分环节，输出就会变成剧烈抖动——执行机构（电机、阀门）会快速磨损，
+        甚至激发机械共振。
+      </p>
+      <p>
+        滤波的作用就是<strong>把有用的信号留下，把噪声去掉</strong>，
+        让控制器看到的是平滑、真实的过程值。但滤波不是越强越好——
+        滤波越强，相位滞后越大，反而会降低系统稳定性。
+      </p>
+
+      <h3 id="sec5-2">常见滤波器类型</h3>
+
+      <div class="card-grid two-col">
+        <div class="card">
+          <div class="card-icon" style="background:rgba(0,212,255,0.15); color:var(--accent);">LPF</div>
+          <h4>一阶低通滤波</h4>
+          <p>
+            最常用、最简单的滤波器。保留低频信号，滤掉高频噪声。
+            算法：y(n) = α·x(n) + (1-α)·y(n-1)。α 越小滤波越强，但响应越慢。
+            MCU 里一行代码就能实现。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(255,107,53,0.15); color:var(--p-color);">MA</div>
+          <h4>移动平均滤波</h4>
+          <p>
+            取最近 N 个采样值的平均值。平滑效果好，能滤掉周期性干扰。
+            缺点是有延迟，且需要额外的数组存储空间。N 越大越平滑、延迟越大。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(78,205,196,0.15); color:var(--i-color);">KM</div>
+          <h4>卡尔曼滤波</h4>
+          <p>
+            最强大的递归滤波算法。不仅滤噪，还能基于物理模型预测下一步状态。
+            无人机 GPS 定位、机器人 SLAM 都在用。计算量稍大，但现代 MCU 完全跑得动。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(167,139,250,0.15); color:var(--d-color);">MED</div>
+          <h4>中值滤波</h4>
+          <p>
+            取最近 N 个采样值的中位数。特别适合去掉脉冲式尖峰干扰
+            （比如传感器偶尔跳一个异常值）。对随机噪声效果不如低通滤波。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(239,68,68,0.15); color:var(--danger);">NCH</div>
+          <h4>陷波滤波器 (Notch)</h4>
+          <p>
+            专门滤除某个特定频率的窄带滤波器。电机/丝杠系统的机械共振
+            通常出现在固定频率，用陷波滤波器精准去除，不影响其他频段。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(16,185,129,0.15); color:var(--success);">CMP</div>
+          <h4>互补滤波</h4>
+          <p>
+            IMU 姿态解算的经典方案。陀螺仪高频特性好但有漂移，
+            加速度计长期准确但动态差——两者按频率互补融合，各取所长。
+          </p>
+        </div>
+      </div>
+
+      <h3 id="sec5-3">一阶低通滤波参数换算</h3>
+      <p>一阶低通滤波的软件系数 α、时间常数 τ、截止频率 fc 三者可以互相换算：</p>
+
+      <div class="formula-block">
+        α ≈ Ts / (τ + Ts)
+        <br>fc = 1 / (2π · τ)
+        <div class="formula-note">
+          Ts：采样周期（秒） &nbsp;|&nbsp; τ：滤波时间常数 &nbsp;|&nbsp; fc：-3dB 截止频率
+        </div>
+      </div>
+
+      <p>举例：采样周期 Ts = 10ms，想要截止频率 fc = 10Hz，则：</p>
+      <ul>
+        <li>τ = 1 / (2π × 10) ≈ 15.9ms</li>
+        <li>α = 0.01 / (0.0159 + 0.01) ≈ 0.386</li>
+      </ul>
+
+      <!-- 滤波效果对比演示 -->
+      <div class="demo-panel">
+        <div class="demo-header">
+          <div>
+            <div class="demo-title">一阶低通滤波效果对比</div>
+            <div class="demo-model">拖动 α 滑块，观察平滑度与响应延迟的权衡</div>
+          </div>
+          <div class="demo-buttons">
+            <button class="btn primary" id="filterReset">重新生成信号</button>
+          </div>
+        </div>
+        <canvas id="filterCanvas" class="demo-canvas" role="img" aria-label="低通滤波效果对比曲线"></canvas>
+
+        <div class="controls-row">
+          <div class="control-item">
+            <label>滤波系数 α <span class="value" id="alphaVal">0.15</span></label>
+            <input type="range" id="alphaSlider" min="0.02" max="1" step="0.01" value="0.15" aria-valuetext="低通滤波系数">
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+          灰线 = 原始带噪声信号 &nbsp;|&nbsp; 蓝线 = 低通滤波后 &nbsp;|&nbsp; 绿虚线 = 真实值
+        </div>
+      </div>
+
+      <h3 id="sec5-4">5.4 滤波算法对比工作台</h3>
+      <p>
+        切换测试信号和滤波算法，实时对比不同滤波器对噪声、尖峰、单频干扰的处理效果。
+        每种算法下方附可直接移植的 C 代码。
+      </p>
+
+      <div class="demo-panel">
+        <div class="demo-header">
+          <div>
+            <div class="demo-title">滤波算法对比工作台</div>
+            <div class="demo-model" id="fwSceneDesc">场景：正弦信号跟踪 + 高斯噪声</div>
+          </div>
+          <div class="demo-buttons">
+            <button class="btn primary" id="fwRegen">重新生成</button>
+          </div>
+        </div>
+
+        <div class="toggle-row" style="margin-bottom: 12px;">
+          <div class="select-wrap">
+            测试信号：
+            <select id="fwSignalType">
+              <option value="sine">正弦 + 噪声</option>
+              <option value="step">阶跃 + 脉冲干扰</option>
+              <option value="const">恒定 + 白噪声</option>
+              <option value="spike">正弦 + 尖峰干扰</option>
+              <option value="sinusnoise">正弦 + 5Hz 单频干扰</option>
+            </select>
+          </div>
+          <div class="select-wrap">
+            滤波算法：
+            <select id="fwAlgoSelect">
+              <option value="lpf">一阶低通滤波</option>
+              <option value="ma">移动平均滤波</option>
+              <option value="med">中值滤波</option>
+              <option value="limit">限幅滤波</option>
+              <option value="kalman">一维卡尔曼滤波</option>
+              <option value="notch">陷波滤波</option>
+            </select>
+          </div>
+        </div>
+
+        <canvas id="fwCanvas" class="demo-canvas" style="height: 320px;" role="img" aria-label="滤波算法对比曲线"></canvas>
+
+        <div class="controls-row">
+          <div class="control-item fw-param" data-algo="lpf">
+            <label>α 系数 <span class="value" id="fwLpfAlphaVal">0.15</span></label>
+            <input type="range" id="fwLpfAlpha" min="0.02" max="1" step="0.01" value="0.15">
+          </div>
+          <div class="control-item fw-param" data-algo="ma" style="display:none;">
+            <label>窗口 N <span class="value" id="fwMaNVal">8</span></label>
+            <input type="range" id="fwMaN" min="2" max="30" step="1" value="8">
+          </div>
+          <div class="control-item fw-param" data-algo="med" style="display:none;">
+            <label>窗口 N <span class="value" id="fwMedNVal">5</span></label>
+            <input type="range" id="fwMedN" min="3" max="15" step="2" value="5">
+          </div>
+          <div class="control-item fw-param" data-algo="limit" style="display:none;">
+            <label>限幅 Δ <span class="value" id="fwLimitVal">0.05</span></label>
+            <input type="range" id="fwLimit" min="0.01" max="0.3" step="0.01" value="0.05">
+          </div>
+          <div class="control-item fw-param" data-algo="kalman" style="display:none;">
+            <label>Q（过程噪声） <span class="value" id="fwKfQVal">0.001</span></label>
+            <input type="range" id="fwKfQ" min="0.0001" max="0.05" step="0.0001" value="0.001">
+          </div>
+          <div class="control-item fw-param" data-algo="kalman" style="display:none;">
+            <label>R（测量噪声） <span class="value" id="fwKfRVal">0.01</span></label>
+            <input type="range" id="fwKfR" min="0.001" max="0.5" step="0.001" value="0.01">
+          </div>
+          <div class="control-item fw-param" data-algo="notch" style="display:none;">
+            <label>抑制频率 f0 (Hz) <span class="value" id="fwNotchF0Val">5</span></label>
+            <input type="range" id="fwNotchF0" min="1" max="20" step="0.5" value="5">
+          </div>
+          <div class="control-item fw-param" data-algo="notch" style="display:none;">
+            <label>品质因数 Q <span class="value" id="fwNotchQVal">5</span></label>
+            <input type="range" id="fwNotchQ" min="1" max="20" step="0.5" value="5">
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+          灰线 = 原始含噪信号 &nbsp;|&nbsp; 蓝线 = 滤波输出 &nbsp;|&nbsp; 绿虚线 = 真实值
+        </div>
+
+        <div style="margin-top: 20px;">
+          <h4 id="fwAlgoTitle" style="font-size: 15px; margin-bottom: 8px;">一阶低通滤波</h4>
+          <p id="fwAlgoDesc" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+            保留低频、衰减高频噪声。α 越小越平滑，但相位滞后越大。适合缓慢变化的信号，如温度、电压采样。
+          </p>
+          <div class="code-block" id="fwCodeBlock"></div>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>观察建议：</strong>
+        <br>① 用"阶跃 + 脉冲干扰"对比<strong>中值滤波</strong>和<strong>移动平均</strong>——中值几乎完美剔除尖峰，移动平均会把尖峰摊平；
+        <br>② 用"正弦 + 5Hz 单频干扰"配<strong>陷波滤波</strong>——只有陷波能精准去掉 5Hz 干扰，其他滤波器都会拖慢响应；
+        <br>③ 用<strong>卡尔曼</strong>对比一阶低通——同样的平滑度下，卡尔曼的相位滞后更小。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>滤波的收益是噪声抑制，代价是相位滞后；滞后会吃掉稳定裕度，所以"越强越好"是错的。</li>
+            <li>一阶低通三参数：α = Ts/(τ+Ts)、fc = 1/(2πτ)；α 越小越平滑、越慢。</li>
+            <li>选型口诀：脉冲尖峰 → 中值 / 限幅；单频干扰 → 陷波；宽带白噪声 → 低通或卡尔曼；周期干扰 → 移动平均。</li>
+            <li>没有万能滤波器，只有和干扰特征匹配的滤波器。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　Ts = 5 ms，要求截止频率 fc = 20 Hz，求 τ 和 α</summary>
+            <div class="quiz-answer">
+              τ = 1/(2π × 20) ≈ <strong>7.96 ms</strong>；
+              α = Ts/(τ + Ts) = 5/(7.96 + 5) ≈ <strong>0.386</strong>。
+              用第 5.3 节的公式就能直接算出来。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　传感器偶尔跳一个离谱的异常值，该选哪种滤波器？</summary>
+            <div class="quiz-answer">
+              先用<strong>中值滤波</strong>或<strong>限幅滤波</strong>剔除尖峰，再接一阶低通平滑。
+              单靠低通会把一个尖峰"摊"成一段缓慢的鼓包，反而污染更久。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　滤波器是不是越强越好？</summary>
+            <div class="quiz-answer">
+              不是。α 越小滞后越大，闭环相位裕度被吃掉，可能从"干净但迟钝"变成"振荡"。
+              滤波强度要和控制带宽匹配——通常把滤波截止频率放在控制器带宽的 3~5 倍以上。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec5">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec4">← 04 · 参数整定方法</a>
+          <a href="#sec6" class="next">06 · PID + 滤波组合 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第六章 ===== -->
+  <section class="section" id="sec6">
+    <div class="container">
+      <div class="section-number">CHAPTER 06</div>
+      <h2>PID + 滤波 组合应用</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 10 分钟</span></div>
+        <ul>
+          <li>说出三个滤波位置各自解决什么问题</li>
+          <li>用积分限幅 / 积分分离 / 反计算消除积分饱和</li>
+          <li>写出不完全微分的离散实现</li>
+        </ul>
+      </div>
+
+      <p>
+        单独的 PID 和单独的滤波都不够用。工程实践中，它们总是组合出现的——
+        而且在哪里加滤波、加什么滤波，直接决定了控制系统的最终性能。
+      </p>
+
+      <h3 id="sec6-1">典型的滤波位置</h3>
+
+      <div class="formula-block">
+        传感器 → [低通滤波] → 误差计算 → PID 运算 → [输出滤波] → 执行机构
+        <div class="formula-note">
+          两个关键滤波点：输入端滤波（滤传感器噪声）、输出端滤波（平滑控制输出）
+        </div>
+      </div>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>滤波位置</th>
+            <th>解决什么问题</th>
+            <th>推荐滤波器</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>传感器输入端</td>
+            <td>滤除测量噪声，保护 D 项不被噪声引爆</td>
+            <td>一阶低通 / 卡尔曼</td>
+          </tr>
+          <tr>
+            <td>微分环节前</td>
+            <td>专门平滑误差变化率，抑制 D 项尖峰</td>
+            <td>低通滤波（截止频率稍高）</td>
+          </tr>
+          <tr>
+            <td>PID 输出端</td>
+            <td>平滑控制量，避免执行机构剧烈动作</td>
+            <td>一阶低通 / 斜率限制</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning-box">
+        <strong>常见误区：</strong>很多初学者把滤波加在误差信号之后、微分环节之前，
+        以为这样就够了。实际上，<strong>测量噪声会同时影响 P 项和 I 项</strong>，
+        所以输入端滤波才是治本的做法。D 项前再加一道滤波，是双保险。
+      </div>
+
+      <h3 id="sec6-2">抗积分饱和</h3>
+      <p>
+        当执行机构已经到达极限（比如阀门全开、电机满载），但误差仍然存在时，
+        积分项会持续累积——这就是<strong>积分饱和</strong>。等误差反向后，
+        积分需要很长时间才能"退出来"，导致严重超调和滞后。
+      </p>
+
+      <div class="card-grid three-col">
+        <div class="card">
+          <div class="card-icon i">限幅</div>
+          <h4>积分限幅法</h4>
+          <p>
+            最简单的方法：给积分项设置上下限，超过就截断。
+            优点是实现简单，缺点是边界处不连续。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon i">分离</div>
+          <h4>积分分离法</h4>
+          <p>
+            误差大时关闭积分（只用 PD 快速响应），
+            误差小时才开启积分（消除稳态误差）。
+            兼顾快速性和稳态精度。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon i">反算</div>
+          <h4>反计算法 (Back-calculation)</h4>
+          <p>
+            输出饱和时，用饱和量与实际输出的差值反向修正积分项。
+            工业级 PID 控制器的标准做法。
+          </p>
+        </div>
+      </div>
+
+      <h3 id="sec6-3">不完全微分（微分滤波）</h3>
+      <p>
+        理想微分项 D(s) = Kd·s 会无限放大高频噪声。工程上用<strong>不完全微分</strong>
+        （也叫滤波微分）替代，本质是在微分项后面串一个一阶低通：
+      </p>
+
+      <div class="formula-block">
+        D(s) = Kd·s / (1 + Kd·s / N)
+        <div class="formula-note">
+          N 为微分滤波系数，通常取 8~20。N 越大越接近理想微分，高频噪声放大越多。
+        </div>
+      </div>
+
+      <p>离散实现形式：</p>
+      <div class="formula-block">
+        d(k) = (Kd / (Kd + N·Ts)) · [d(k-1) + N·(e(k) - e(k-1))]
+      </div>
+
+      <p>这就是"PID + 滤波"最核心的工程做法——不是在 PID 外面加滤波，而是在微分环节内部就内置了滤波。</p>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>三个滤波位置：输入端治本（噪声同时污染 P 和 I），微分前保 D 项，输出端护执行机构。</li>
+            <li>积分饱和三种解法：限幅最简单、分离兼顾快速性与精度、反计算最优雅。</li>
+            <li>不完全微分 = 微分后面串一阶低通，N 取 8~20；N 越大越接近理想微分。</li>
+            <li>对<strong>测量值</strong>微分而非对误差微分，避免设定值跳变造成的 derivative kick。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　为什么在输出端加滤波，不能代替输入端滤波？</summary>
+            <div class="quiz-answer">
+              噪声在进入 PID 之前就已经污染了 P 项和 I 项，计算出来的误差本身就是错的；
+              输出端滤波只能让执行机构动作变缓，还会额外引入滞后。
+              治本的做法是输入滤波，D 项前再补一道。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　完整描述一次积分饱和的过程</summary>
+            <div class="quiz-answer">
+              执行机构到达极限（阀门全开）→ 误差仍然存在 → 积分继续累积到很大 → 误差反向后，
+              积分要先把这堆积压"退掉"，输出长时间卡在极限 → 严重超调和滞后。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　不完全微分里 N 取大或取小，分别意味着什么？</summary>
+            <div class="quiz-answer">
+              N 大 → 更接近理想微分，抑制超调能力强，但高频噪声放大明显；
+              N 小 → 微分被强滤波，平滑但对快速趋势不敏感。工程常用 8~20。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec6">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec5">← 05 · 滤波算法基础</a>
+          <a href="#sec7" class="next">07 · 高级 PID 算法 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第七章 ===== -->
+  <section class="section" id="sec7">
+    <div class="container">
+      <div class="section-number">CHAPTER 07</div>
+      <h2>高级 PID 算法</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 6 分钟</span></div>
+        <ul>
+          <li>列举四种增强型 PID 的核心思路</li>
+          <li>判断什么场景值得引入它们，什么场景纯属过度设计</li>
+        </ul>
+      </div>
+
+      <p>
+        经典 PID 有一个根本局限：参数一旦设定就固定不变。但真实系统往往是非线性的——
+        不同工况、不同温度、不同负载下，最佳参数其实是不一样的。
+        于是衍生出了各种"增强版 PID"。
+      </p>
+
+      <div class="card-grid two-col">
+        <div class="card">
+          <div class="card-icon" style="background:rgba(0,212,255,0.15); color:var(--accent);">GS</div>
+          <h4>增益调度 (Gain Scheduling)</h4>
+          <p>
+            最实用的高级 PID。根据工况点（温度、负载、转速）预先准备多组 PID 参数，
+            运行时自动切换。工业上用得最多，因为简单可靠。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(255,107,53,0.15); color:var(--p-color);">FL</div>
+          <h4>模糊 PID</h4>
+          <p>
+            用模糊逻辑规则（"如果误差大且误差变化率也大，则增大 Kp"）在线调整参数。
+            不需要精确数学模型，特别适合非线性、时变系统。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(78,205,196,0.15); color:var(--i-color);">NN</div>
+          <h4>神经网络 PID</h4>
+          <p>
+            用神经网络在线辨识系统模型，然后实时计算最优 PID 参数。
+            最前沿的方向，计算量大，但性能上限最高。
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-icon" style="background:rgba(167,139,250,0.15); color:var(--d-color);">ZT</div>
+          <h4>继电自整定</h4>
+          <p>
+            开机时自动做一次小测试，根据系统阶跃响应特征自动算出 PID 参数初始值。
+            现在很多 PLC 和变频器都内置了这个功能。
+          </p>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>学习建议：</strong>先把经典 PID + 低通滤波玩熟，能解决 80% 的实际问题。
+        增益调度是性价比最高的进阶方向。模糊和神经网络是锦上添花，不是雪中送炭。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>增益调度：按工况点切参数组，简单可靠、易调试，是性价比最高的进阶方案。</li>
+            <li>模糊 / 神经网络：用规则或模型在线调参，适合非线性、时变对象，但难验证、调试靠经验。</li>
+            <li>先把手上的经典 PID + 低通玩熟，能覆盖 80% 的实际问题，再考虑增强方案。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">2 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　某系统的增益随负载变化约 3 倍，最该上哪种方案？</summary>
+            <div class="quiz-answer">
+              <strong>增益调度</strong>。按负载分几段，每段存一组整定好的参数，运行时切换。
+              实现简单、行为可预测，现场排查也方便。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　模糊 PID 的优势和代价分别是什么？</summary>
+            <div class="quiz-answer">
+              优势：不需要精确数学模型，能吃进老师傅的经验，对非线性、时变系统适应性强。
+              代价：规则表和隶属度函数要人设计，缺乏严格的稳定性证明，调参基本靠经验试凑。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec7">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec6">← 06 · PID + 滤波组合</a>
+          <a href="#sec8" class="next">08 · 工程实战案例 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 第八章 ===== -->
+  <section class="section" id="sec8">
+    <div class="container">
+      <div class="section-number">CHAPTER 08</div>
+      <h2>工程实战案例</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 10 分钟</span></div>
+        <ul>
+          <li>把「对象特性 → 参数选择 → 滤波方案」串成一条决策链</li>
+          <li>对照四个案例，理解工程上的取舍逻辑</li>
+        </ul>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="time">案例 01</div>
+          <h4>温度控制（烘箱 / 加热台）</h4>
+          <p>
+            大惯性、纯滞后系统。P 要小，I 是主角，D 基本不用。
+            输入端加低通滤波（温度传感器噪声大），输出端加斜率限制防止加热丝剧烈通断。
+            纯滞后严重时用 Smith 预估器补偿。
+          </p>
+        </div>
+        <div class="timeline-item">
+          <div class="time">案例 02</div>
+          <h4>电机三闭环控制</h4>
+          <p>
+            典型的级联 PID：电流环（内环，PI）→ 速度环（中环，PI）→ 位置环（外环，P）。
+            编码器测速有量化噪声，速度环 D 项通常不用。内环采样快、外环采样慢。
+          </p>
+        </div>
+        <div class="timeline-item">
+          <div class="time">案例 03</div>
+          <h4>无人机姿态稳定</h4>
+          <p>
+            陀螺仪数据噪声极大，互补滤波或卡尔曼滤波是标配。
+            内环用 PD 控制（姿态角速率），外环用 PI 控制（角度位置）。多环级联，每层都有滤波。
+          </p>
+        </div>
+        <div class="timeline-item">
+          <div class="time">案例 04</div>
+          <h4>开关电源输出稳压</h4>
+          <p>
+            开关频率高，采样噪声大。用 PI 控制器补偿负载变化，
+            输出电压采样加 RC 硬件滤波 + 软件低通双重滤波。
+            输出 LC 滤波器本身就是被控对象的一部分。
+          </p>
+        </div>
+      </div>
+
+      <h3>学习路线建议</h3>
+      <ol>
+        <li><strong>理论阶段</strong>：搞清楚 P/I/D 各自的物理意义，能画出阶跃响应曲线</li>
+        <li><strong>仿真阶段</strong>：用上面的仿真器反复调参，建立"参数 → 响应"的直觉</li>
+        <li><strong>代码阶段</strong>：在 STM32 / Arduino 上实现一个完整的 PID + 滤波（见附录）</li>
+        <li><strong>实战阶段</strong>：做一个温度控制或电机控制项目，亲手调一次参数</li>
+      </ol>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>对象特性决定参数结构：大惯性 + 纯滞后 → P 小、I 为主、D 基本不用；快动态 → 才轮到 D 上场。</li>
+            <li>噪声特征决定滤波方案：编码器量化 → 一阶低通；陀螺仪漂移 → 互补 / 卡尔曼；机械共振 → 陷波。</li>
+            <li>级联控制：内环快、外环慢；内环必须先整定，外环才有意义。</li>
+            <li>工程上的"标准答案"往往是最简单、最可解释的那一套——能调、能复现、能交接。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">3 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　烘箱温度控制为什么常常不用 D？</summary>
+            <div class="quiz-answer">
+              大惯性 + 纯滞后，误差变化率长期接近 0，D 提供不了有效预测；而温度传感器的噪声又会被 D 放大。
+              用 PI + 输出斜率限制更稳。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　电机三闭环为什么内环多用 PI，外环才可能用 P / PD？</summary>
+            <div class="quiz-answer">
+              内环（电流、速度）要求快速无静差跟踪，带宽高、噪声大，不适合引入 D；
+              外环（位置）用 P 或 PD 提供阻尼和抗超调，且外环噪声经过内环已被平滑。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q3　为什么必须先整定内环？</summary>
+            <div class="quiz-answer">
+              外环把内环当成"理想执行器"。内环没调好，外环其实一直在补偿内环的动态，
+              参数怎么调都别扭；内环稳了，外环的整定才有明确含义。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="sec8">标记本章已学完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec7">← 07 · 高级 PID 算法</a>
+          <a href="#appendix" class="next">附录 · C 代码实现 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 附录：C 代码 ===== -->
+  <section class="section" id="appendix">
+    <div class="container">
+      <div class="section-number">APPENDIX</div>
+      <h2>附录 · 嵌入式 C 代码实现</h2>
+
+      <div class="chapter-goal">
+        <div class="chapter-goal-head">学习目标 <span class="time-badge">约 15 分钟</span></div>
+        <ul>
+          <li>看懂附录代码的五段结构，并能移植到自己的工程</li>
+          <li>把每个参数对应回前面章节的公式</li>
+          <li>记住移植时的三个坑：采样周期、量纲、浮点精度</li>
+        </ul>
+      </div>
+
+      <p>
+        下面是一个工程级 PID 控制器的 C 语言实现，包含位置式结构、积分限幅抗饱和、
+        不完全微分（微分滤波）、输入低通滤波。可以直接移植到 STM32 / Arduino 等平台。
+      </p>
+
+      <div class="code-block">
+<span class="cmt">// ========== PID 控制器结构体 ==========</span>
+<span class="kw">typedef struct</span> {
+    <span class="cmt">/* 增益参数 */</span>
+    <span class="kw">float</span> Kp;
+    <span class="kw">float</span> Ki;
+    <span class="kw">float</span> Kd;
+
+    <span class="cmt">/* 状态变量 */</span>
+    <span class="kw">float</span> integral;      <span class="cmt">// 积分累积项</span>
+    <span class="kw">float</span> prevError;     <span class="cmt">// 上一次误差</span>
+    <span class="kw">float</span> prevMeasured;  <span class="cmt">// 上一次滤波后测量值</span>
+    <span class="kw">float</span> prevDeriv;     <span class="cmt">// 上一次微分值（不完全微分用）</span>
+
+    <span class="cmt">/* 限幅 */</span>
+    <span class="kw">float</span> outMax;        <span class="cmt">// 输出上限</span>
+    <span class="kw">float</span> outMin;        <span class="cmt">// 输出下限</span>
+    <span class="kw">float</span> integralMax;   <span class="cmt">// 积分限幅（抗饱和）</span>
+
+    <span class="cmt">/* 滤波参数 */</span>
+    <span class="kw">float</span> inputAlpha;    <span class="cmt">// 输入低通系数 (0~1)</span>
+    <span class="kw">float</span> derivN;        <span class="cmt">// 不完全微分系数 N，通常 8~20</span>
+
+    <span class="kw">float</span> Ts;            <span class="cmt">// 采样周期 (秒)</span>
+} PID_Controller;
+
+<span class="cmt">// ========== PID 计算函数 ==========</span>
+<span class="kw">float</span> <span class="fn">PID_Update</span>(PID_Controller *pid, <span class="kw">float</span> setpoint, <span class="kw">float</span> measuredRaw) {
+    <span class="cmt">// 1. 输入低通滤波</span>
+    <span class="kw">float</span> measured = pid->inputAlpha * measuredRaw
+                   + (1.0f - pid->inputAlpha) * pid->prevMeasured;
+    pid->prevMeasured = measured;
+
+    <span class="cmt">// 2. 计算误差</span>
+    <span class="kw">float</span> error = setpoint - measured;
+
+    <span class="cmt">// 3. 比例项</span>
+    <span class="kw">float</span> pTerm = pid->Kp * error;
+
+    <span class="cmt">// 4. 积分项 + 抗饱和（积分限幅）</span>
+    pid->integral += error * pid->Ts;
+    <span class="cmt">// 积分限幅，防止饱和</span>
+    <span class="kw">if</span> (pid->integral > pid->integralMax) pid->integral = pid->integralMax;
+    <span class="kw">if</span> (pid->integral < -pid->integralMax) pid->integral = -pid->integralMax;
+    <span class="kw">float</span> iTerm = pid->Ki * pid->integral;
+
+    <span class="cmt">// 5. 微分项（对测量值微分，避免设定值突变引起 derivative kick）</span>
+    <span class="kw">float</span> rawDeriv = (measured - pid->prevMeasured) / pid->Ts;
+    <span class="cmt">// 一阶低通滤波后的微分（不完全微分）</span>
+    <span class="kw">float</span> derivAlpha = pid->Kd / (pid->Kd + pid->derivN * pid->Ts);
+    <span class="kw">float</span> dTerm = derivAlpha * pid->prevDeriv
+                 + (1.0f - derivAlpha) * (-pid->Kd * rawDeriv);
+    pid->prevDeriv = dTerm;
+    pid->prevError = error;
+
+    <span class="cmt">// 6. 合成输出</span>
+    <span class="kw">float</span> output = pTerm + iTerm + dTerm;
+
+    <span class="cmt">// 7. 输出限幅</span>
+    <span class="kw">if</span> (output > pid->outMax) output = pid->outMax;
+    <span class="kw">if</span> (output < pid->outMin) output = pid->outMin;
+
+    <span class="kw">return</span> output;
+}
+
+<span class="cmt">// ========== 使用示例 ==========</span>
+<span class="cmt">// PID_Controller heater = {</span>
+<span class="cmt">//     .Kp = 2.0, .Ki = 0.5, .Kd = 0.1,</span>
+<span class="cmt">//     .integral = 0, .prevError = 0, .prevMeasured = 0, .prevDeriv = 0,</span>
+<span class="cmt">//     .outMax = 100, .outMin = 0, .integralMax = 50,</span>
+<span class="cmt">//     .inputAlpha = 0.2, .derivN = 10,</span>
+<span class="cmt">//     .Ts = 0.01   // 10ms 采样周期</span>
+<span class="cmt">// };</span>
+<span class="cmt">// 在定时器中断中每 10ms 调用一次：</span>
+<span class="cmt">// float power = PID_Update(&heater, targetTemp, readTempSensor());</span>
+      </div>
+
+      <div class="tip-box">
+        <strong>代码要点：</strong>
+        <br>① 对<strong>测量值</strong>微分而不是对误差微分——避免设定值跳变时产生 derivative kick；
+        <br>② 积分限幅是最简单的抗饱和方法，嵌入式里最常用；
+        <br>③ 输入滤波系数 inputAlpha 根据传感器噪声和采样周期实测调整。
+      </div>
+
+      <div class="chapter-footer">
+        <div class="takeaways">
+          <h4>本章小结</h4>
+          <ul>
+            <li>代码 = 输入滤波 → P → I（积分限幅）→ 不完全微分 → 输出限幅，五段结构一一对应前面的公式。</li>
+            <li>微分对测量值求，不对误差求，避开 derivative kick。</li>
+            <li>移植三件事：Ts 与实际调用周期一致、工程量纲统一、长期积分注意浮点累积误差。</li>
+          </ul>
+        </div>
+
+        <div class="quiz">
+          <div class="quiz-head">
+            <h4>自测 <span class="tag">2 题 · 先答后看</span></h4>
+            <button type="button" class="quiz-toggle">展开全部答案</button>
+          </div>
+          <details class="quiz-item">
+            <summary>Q1　代码里微分项为什么用 prevMeasured 而不是 prevError？</summary>
+            <div class="quiz-answer">
+              对<strong>测量值</strong>微分，设定值突变时微分项不会跟着跳变，避免 derivative kick；
+              而在设定值恒定时，两种做法的效果完全一致。
+            </div>
+          </details>
+          <details class="quiz-item">
+            <summary>Q2　integralMax 应该怎么取？</summary>
+            <div class="quiz-answer">
+              按"积分项最多能贡献多少输出"倒推：让 Ki × integralMax 不超过输出量程的合理比例，
+              否则积分一旦存满就会长期顶在限幅上，抗饱和形同虚设。
+            </div>
+          </details>
+        </div>
+
+        <div class="chapter-actions">
+          <button type="button" class="btn mark-done" data-chapter="appendix">标记附录已读完</button>
+        </div>
+
+        <div class="chapter-nav">
+          <a href="#sec8">← 08 · 工程实战案例</a>
+          <a href="#glossary" class="next">附 A · 术语速查表 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 附 A：术语速查 ===== -->
+  <section class="section" id="glossary">
+    <div class="container">
+      <div class="section-number">APPENDIX A</div>
+      <h2>术语速查表</h2>
+      <p>复习、面试、和同事对术语时用。忘了某个词是什么意思，先来这里扫一眼。</p>
+
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="width: 26%;">术语</th>
+            <th>一句话解释</th>
+            <th style="width: 14%;">详见</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>开环 / 闭环</td>
+            <td>开环只发指令不看结果；闭环把实际值测回来与目标比较，再修正输出。</td>
+            <td>第 1 章</td>
+          </tr>
+          <tr>
+            <td>SP / PV / MV</td>
+            <td>设定值、过程值（测量值）、控制量——PID 的输入、反馈与输出。</td>
+            <td>第 1 章</td>
+          </tr>
+          <tr>
+            <td>稳态误差 e<sub>ss</sub></td>
+            <td>系统稳定后仍然残留的偏差，只有积分作用能把它消掉。</td>
+            <td>第 1、3 章</td>
+          </tr>
+          <tr>
+            <td>超调量 σ%</td>
+            <td>响应峰值超出目标值的百分比，衡量"稳不稳"。</td>
+            <td>第 3 章</td>
+          </tr>
+          <tr>
+            <td>上升时间 t<sub>r</sub></td>
+            <td>从 10% 到 90% 目标值所需时间，衡量"快不快"。</td>
+            <td>第 3 章</td>
+          </tr>
+          <tr>
+            <td>调节时间 t<sub>s</sub></td>
+            <td>进入并保持在 ±5% 误差带内、不再出去所需的时间。</td>
+            <td>第 3 章</td>
+          </tr>
+          <tr>
+            <td>相位滞后</td>
+            <td>滤波、延迟带来的相位损失，会吃掉稳定裕度，是滤波的主要代价。</td>
+            <td>第 5 章</td>
+          </tr>
+          <tr>
+            <td>相位裕度</td>
+            <td>闭环稳定的余量，工程上一般希望不小于 45°。</td>
+            <td>第 5 章</td>
+          </tr>
+          <tr>
+            <td>时间常数 τ</td>
+            <td>一阶系统上升到稳态值 63% 所需时间，表征系统的"惯性"。</td>
+            <td>第 4、5 章</td>
+          </tr>
+          <tr>
+            <td>截止频率 f<sub>c</sub></td>
+            <td>滤波器幅值衰减到 −3 dB 的频率，对应 f<sub>c</sub> = 1/(2πτ)。</td>
+            <td>第 5 章</td>
+          </tr>
+          <tr>
+            <td>采样周期 T<sub>s</sub></td>
+            <td>数字控制器两次运算的时间间隔，取主导时间常数的 1/10 ~ 1/20。</td>
+            <td>第 4 章</td>
+          </tr>
+          <tr>
+            <td>积分饱和</td>
+            <td>执行机构到极限后积分继续累积，误差反向后要很久才能"退出来"。</td>
+            <td>第 6 章</td>
+          </tr>
+          <tr>
+            <td>derivative kick</td>
+            <td>设定值阶跃时微分项瞬间打出的巨大尖峰，靠"对测量值微分"规避。</td>
+            <td>第 6 章</td>
+          </tr>
+          <tr>
+            <td>不完全微分</td>
+            <td>在微分环节内部串一阶低通，限制高频噪声放大，N 通常取 8~20。</td>
+            <td>第 6 章</td>
+          </tr>
+          <tr>
+            <td>陷波滤波</td>
+            <td>只衰减某个窄频带的滤波器，专治电机 / 丝杠的固定频率机械共振。</td>
+            <td>第 5 章</td>
+          </tr>
+          <tr>
+            <td>互补滤波</td>
+            <td>两路传感器按频段互补融合：高频信一个、低频信另一个。</td>
+            <td>第 5 章</td>
+          </tr>
+          <tr>
+            <td>增益调度</td>
+            <td>按工况点切换多组已经整定好的 PID 参数，简单且可预测。</td>
+            <td>第 7 章</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="tip-box">
+        <strong>记忆方法：</strong>把术语分成三组来记——<em>指标</em>（超调、上升时间、调节时间、稳态误差）、
+        <em>对象参数</em>（τ、f<sub>c</sub>、T<sub>s</sub>、相位裕度）、<em>工程手段</em>（抗饱和、不完全微分、陷波、增益调度）。
+        分组之后，名词就不再是一盘散沙。
+      </div>
+
+      <div class="chapter-nav" style="margin-top: 28px;">
+        <a href="#appendix">← 附录 · C 代码实现</a>
+        <a href="#cheatsheet" class="next">附 B · 公式速查卡 →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 附 B：公式速查 ===== -->
+  <section class="section" id="cheatsheet">
+    <div class="container">
+      <div class="section-number">APPENDIX B</div>
+      <h2>公式速查卡</h2>
+      <p>调试现场够用的一页纸。每条公式后面都标了它来自哪一章，想不起推导就回去看。</p>
+
+      <div class="cheat-grid">
+        <div class="cheat-item">
+          <h4>PID 时域表达式</h4>
+          <code>u(t) = Kp·e(t) + Ki·∫e dt + Kd·de/dt
+Ki = Kp / Ti
+Kd = Kp · Td</code>
+          <small>第 2 章 · Kp/Ki/Kd 与 Kp/Ti/Td 是同一套东西的两种写法</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>离散化实现</h4>
+          <code>位置式：u(k) = Kp·e(k) + Ki·Σe(i)·Δt
+                + Kd·[e(k)−e(k−1)]/Δt
+
+增量式：Δu(k) = Kp·[e(k)−e(k−1)]
+                + Ki·e(k)·Δt
+                + Kd·[e(k)−2e(k−1)+e(k−2)]/Δt</code>
+          <small>第 2 章 · Δt 必须写出来，混淆它就是量纲错误的开始</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>传递函数</h4>
+          <code>Gc(s) = Kp + Ki/s + Kd·s
+
+低频：I 项增益无穷大 → 消静差
+高频：D 项增益无穷大 → 放大噪声</code>
+          <small>第 2 章 · "为什么微分前必须滤波"的答案就在这里</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>Ziegler-Nichols 临界比例度法</h4>
+          <code>P    Kp = 0.50·Ku
+PI   Kp = 0.45·Ku   Ki = 0.54·Ku/Tu
+PID  Kp = 0.60·Ku   Ki = 1.20·Ku/Tu
+     Kd = 0.075·Ku·Tu</code>
+          <small>第 4 章 · 结果偏激进，实际把 Kp 再降 20%~30%</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>采样周期</h4>
+          <code>Ts ≈ (1/10 ~ 1/20) × T主导
+
+T主导 = 系统主导时间常数
+</code>
+          <small>第 4 章 · 太小放大差分噪声、白耗 CPU</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>一阶低通滤波</h4>
+          <code>y(n) = α·x(n) + (1−α)·y(n−1)
+
+α = Ts / (τ + Ts)      α ∈ (0, 1]
+fc = 1 / (2π·τ)
+τ = 1 / (2π·fc)</code>
+          <small>第 5 章 · 三参数互相换算，改一个另外两个跟着变</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>不完全微分</h4>
+          <code>D(s) = Kd·s / (1 + Kd·s/N)
+
+d(k) = Kd/(Kd + N·Ts) ·
+       [d(k−1) + N·(e(k)−e(k−1))]</code>
+          <small>第 6 章 · N 越大越接近理想微分</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>一维卡尔曼滤波</h4>
+          <code>P  = P + Q
+K  = P / (P + R)
+X  = X + K·(z − X)
+P  = (1 − K)·P</code>
+          <small>第 5 章 · Q 大 → 信测量；R 大 → 信模型</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>陷波滤波器（双二阶）</h4>
+          <code>w0 = 2π·f0 / fs
+a  = sin(w0) / (2Q)
+b0 = 1/(1+a), b1 = −2cos(w0)/(1+a)
+b2 = b0,     a1 = b1
+a2 = (1−a)/(1+a)</code>
+          <small>第 5 章 · Q 越高，陷波越窄</small>
+        </div>
+
+        <div class="cheat-item">
+          <h4>抗积分饱和</h4>
+          <code>限幅：if (I &gt; Imax) I = Imax;
+反计算：I += Ki·e·Ts
+     + (u_sat − u)/Tt · Ts</code>
+          <small>第 6 章 · Tt 是跟踪时间常数，越小退出越快</small>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <strong>打印建议：</strong>直接按 <kbd>Ctrl</kbd> + <kbd>P</kbd> 打印本页，会切换成浅色版式，
+        并且自动展开所有自测答案、隐藏仿真控制区，适合做成纸质备忘。
+      </div>
+
+      <div class="chapter-nav" style="margin-top: 28px;">
+        <a href="#glossary">← 附 A · 术语速查表</a>
+        <a href="#faq" class="next">附 C · 常见问题 →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 附 C：常见问题 ===== -->
+  <section class="section" id="faq">
+    <div class="container">
+      <div class="section-number">APPENDIX C</div>
+      <h2>常见问题</h2>
+      <p>刚开始学 PID 的人最容易卡住的几个问题。</p>
+
+      <div class="quiz">
+        <div class="quiz-head">
+          <h4>FAQ <span class="tag">5 问 · 点击展开</span></h4>
+          <button type="button" class="quiz-toggle">展开全部答案</button>
+        </div>
+        <details class="quiz-item">
+          <summary>Q1　应该先学 PID 还是先学滤波？</summary>
+          <div class="quiz-answer">
+            先学 PID，因为滤波是为 PID 服务的；但两者交替学效率最高：
+            读完第 1~3 章建立概念 → 第 5 章搞清楚滤波的代价 → 第 6 章把两者拼起来。
+          </div>
+        </details>
+        <details class="quiz-item">
+          <summary>Q2　没有硬件、不会嵌入式，能学吗？</summary>
+          <div class="quiz-answer">
+            能。第 3 章和第 5 章的仿真台就是虚拟实验台，调参的直觉完全可以在浏览器里练出来。
+            有条件再上手 STM32 / Arduino，把附录代码跑一遍，理解会立刻加深一个层次。
+          </div>
+        </details>
+        <details class="quiz-item">
+          <summary>Q3　参数整定有"标准答案"吗？</summary>
+          <div class="quiz-answer">
+            没有。同一台设备在不同负载、不同环境温度下的最优参数就不一样。
+            Z-N 之类的公式只提供<strong>起点</strong>，最后必须靠现场试凑和指标验收。
+          </div>
+        </details>
+        <details class="quiz-item">
+          <summary>Q4　为什么仿真很完美，实物一上就抖？</summary>
+          <div class="quiz-answer">
+            仿真里通常没有传感器噪声、执行器死区与饱和、采样与计算延迟、机械共振。
+            实物把这四样补齐之后，"完美参数"往往会直接振荡。优先怀疑：噪声进了 D 项、输出饱和没处理、滤波太强导致滞后。
+          </div>
+        </details>
+        <details class="quiz-item">
+          <summary>Q5　Kp 越大响应越快，为什么不能一直加大？</summary>
+          <div class="quiz-answer">
+            增益提高会不断消耗相位裕度，越过临界点就等幅振荡甚至发散；
+            同时它把测量噪声、模型误差一起放大。快是有上限的，这个上限由系统的动态特性和延迟决定。
+          </div>
+        </details>
+      </div>
+
+      <div class="chapter-nav" style="margin-top: 8px;">
+        <a href="#cheatsheet">← 附 B · 公式速查卡</a>
+        <a href="#sec1" class="next">回到第 1 章重读 ↺</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <div class="container">
+      PID 控制与滤波算法学习手册 · 交互式学习版
+      <div class="refs">
+        参考书目：Åström &amp; Hägglund《PID Controllers》 · 胡寿松《自动控制原理》 · Brian Douglas Control Systems Lectures
+      </div>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+// ========== 工具：缓存 Canvas 尺寸 ==========
+function setupCanvas(canvas) {
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  let width = 0, height = 0;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  resize();
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas.parentElement);
+  }
+
+  return { ctx, get width() { return width; }, get height() { return height; } };
+}
+
+// ========== 侧边目录滚动联动 ==========
+const navLinks = document.querySelectorAll('#tocNav a');
+
+function updateActiveNav() {
+  const scrollPos = window.scrollY + 140;
+  let currentId = 'hero';
+
+  // 只认目录里真实存在的锚点：新增小节不会让高亮"掉线"
+  navLinks.forEach(link => {
+    const id = (link.getAttribute('href') || '').slice(1);
+    const el = id ? document.getElementById(id) : null;
+    if (el && el.offsetTop <= scrollPos) currentId = id;
+  });
+
+  navLinks.forEach(link => {
+    link.classList.remove('active');
+    link.removeAttribute('aria-current');
+    if (link.getAttribute('href') === '#' + currentId) {
+      link.classList.add('active');
+      link.setAttribute('aria-current', 'true');
+    }
+  });
+}
+
+window.addEventListener('scroll', updateActiveNav);
+
+// ========== 移动端目录 ==========
+const menuToggle = document.getElementById('menuToggle');
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+function openSidebar() {
+  sidebar.classList.add('open');
+  sidebarOverlay.classList.add('visible');
+  menuToggle.setAttribute('aria-expanded', 'true');
+}
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  sidebarOverlay.classList.remove('visible');
+  menuToggle.setAttribute('aria-expanded', 'false');
+}
+
+menuToggle.addEventListener('click', () => {
+  if (sidebar.classList.contains('open')) closeSidebar();
+  else openSidebar();
+});
+
+sidebarOverlay.addEventListener('click', closeSidebar);
+
+navLinks.forEach(link => {
+  link.addEventListener('click', closeSidebar);
+});
+
+// ========== 阅读进度条 ==========
+const progressBar = document.getElementById('progressBar');
+
+function updateProgress() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  if (docHeight <= 0) return;
+  const progress = (scrollTop / docHeight) * 100;
+  progressBar.style.width = progress + '%';
+}
+
+window.addEventListener('scroll', updateProgress);
+
+// ========== 回到顶部 ==========
+const backToTop = document.getElementById('backToTop');
+
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 500) {
+    backToTop.classList.add('visible');
+  } else {
+    backToTop.classList.remove('visible');
+  }
+});
+
+backToTop.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ========== Hero 动画 ==========
+const heroSetup = setupCanvas(document.getElementById('heroCanvas'));
+let heroTime = 0;
+let heroY = 0;
+let heroYVel = 0;
+let heroIntegral = 0;
+let heroPrevMeasured = 0;
+let heroRafId = null;
+let heroData = [];
+
+const heroWn = 2.0, heroZeta = 0.35, heroK = 1.0;
+
+function heroPIDStep() {
+  const dt = 0.05;
+  const setpoint = 1;
+  const Kp = 1.8, Ki = 0.6, Kd = 0.3;
+
+  const error = setpoint - heroY;
+  heroIntegral += error * dt;
+  heroIntegral = Math.max(-2, Math.min(2, heroIntegral));
+  const derivative = (heroY - heroPrevMeasured) / dt;
+  heroPrevMeasured = heroY;
+
+  let u = Kp * error + Ki * heroIntegral - Kd * derivative;
+
+  // 二阶系统模型
+  heroYVel += (heroK * u - 2 * heroZeta * heroWn * heroYVel - heroWn * heroWn * heroY) * dt;
+  heroY += heroYVel * dt;
+
+  heroTime += dt;
+  if (heroTime > 15) {
+    heroTime = 0;
+    heroY = 0;
+    heroYVel = 0;
+    heroIntegral = 0;
+    heroPrevMeasured = 0;
+    heroData = [];
+  }
+}
+
+function drawHero() {
+  const { ctx, width: w, height: h } = heroSetup;
+  ctx.clearRect(0, 0, w, h);
+
+  // 网格线
+  ctx.strokeStyle = 'rgba(42, 53, 80, 0.3)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, h * i / 9);
+    ctx.lineTo(w, h * i / 9);
+    ctx.stroke();
+  }
+
+  heroPIDStep();
+  heroData.push({ t: heroTime, y: heroY });
+  if (heroData.length > 300) heroData.shift();
+
+  // 动态范围
+  const maxY = Math.max(1.2, ...heroData.map(d => d.y));
+  const minY = Math.min(-0.1, ...heroData.map(d => d.y));
+  const range = maxY - minY;
+
+  // 目标值线（与数据映射公式一致）
+  const targetY = h - ((1 - minY) / range) * h * 0.8 - h * 0.1;
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.5)';
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(0, targetY);
+  ctx.lineTo(w, targetY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 响应曲线
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  heroData.forEach((d, i) => {
+    const x = (i / Math.max(299, heroData.length - 1)) * w;
+    const y = h - ((d.y - minY) / range) * h * 0.8 - h * 0.1;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  heroRafId = requestAnimationFrame(drawHero);
+}
+
+// IntersectionObserver：离开视口时暂停
+if (window.IntersectionObserver) {
+  const heroObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        if (heroRafId === null) heroRafId = requestAnimationFrame(drawHero);
+      } else {
+        if (heroRafId !== null) {
+          cancelAnimationFrame(heroRafId);
+          heroRafId = null;
+        }
+      }
+    });
+  }, { threshold: 0.1 });
+  heroObserver.observe(document.getElementById('heroCanvas').parentElement);
+}
+drawHero();
+
+// ========== 第三章：交互式 PID 仿真 ==========
+const pidCanvas = document.getElementById('pidCanvas');
+const pidSetup = setupCanvas(pidCanvas);
+
+const kpSlider = document.getElementById('kpSlider');
+const kiSlider = document.getElementById('kiSlider');
+const kdSlider = document.getElementById('kdSlider');
+const kpVal = document.getElementById('kpVal');
+const kiVal = document.getElementById('kiVal');
+const kdVal = document.getElementById('kdVal');
+const showComponents = document.getElementById('showComponents');
+const showNoise = document.getElementById('showNoise');
+const showFilter = document.getElementById('showFilter');
+const inputType = document.getElementById('inputType');
+const simPauseBtn = document.getElementById('simPause');
+
+const ovMetric = document.getElementById('ovMetric');
+const rtMetric = document.getElementById('rtMetric');
+const stMetric = document.getElementById('stMetric');
+const ssMetric = document.getElementById('ssMetric');
+
+let simData = [];
+let simTime = 0;
+let simY = 0;
+let simYVel = 0;
+let simIntegral = 0;
+let simFilterPrev = 0;   // 低通滤波用的上一次值
+let simPidPrevMeasured = 0; // D 项微分项用的上一次测量值
+let simPrevDeriv = 0;
+let simPaused = false;
+let simRafId = null;
+
+const simWn = 2.0, simZeta = 0.35, simK = 1.0;
+
+function getSetpoint(t) {
+  const type = inputType.value;
+  if (type === 'step') return t < 1 ? 0 : 1;
+  if (type === 'square') {
+    const period = 8;
+    const phase = (t % period) / period;
+    return phase < 0.5 ? 1 : 0.3;
+  }
+  if (type === 'sine') {
+    return 0.6 + 0.4 * Math.sin(t * 0.8);
+  }
+  return 1;
+}
+
+function resetSim() {
+  simData = [];
+  simTime = 0;
+  simY = 0;
+  simYVel = 0;
+  simIntegral = 0;
+  simFilterPrev = 0;
+  simPidPrevMeasured = 0;
+  simPrevDeriv = 0;
+  ovMetric.textContent = '--';
+  rtMetric.textContent = '--';
+  stMetric.textContent = '--';
+  ssMetric.textContent = '--';
+}
+
+function pidSimStep() {
+  if (simPaused) return;
+  const dt = 0.08;
+  const setpoint = getSetpoint(simTime);
+  const Kp = parseFloat(kpSlider.value);
+  const Ki = parseFloat(kiSlider.value);
+  const Kd = parseFloat(kdSlider.value);
+
+  let measuredRaw = simY;
+  if (showNoise.checked) {
+    measuredRaw += (Math.random() - 0.5) * 0.15;
+  }
+
+  let measured = measuredRaw;
+  if (showFilter.checked) {
+    const alpha = 0.2;
+    measured = alpha * measuredRaw + (1 - alpha) * simFilterPrev;
+  }
+  simFilterPrev = measured;
+
+  const error = setpoint - measured;
+  const pTerm = Kp * error;
+
+  simIntegral += error * dt;
+  simIntegral = Math.max(-2, Math.min(2, simIntegral));
+  const iTerm = Ki * simIntegral;
+
+  const rawDeriv = (measured - simPidPrevMeasured) / dt;
+  simPidPrevMeasured = measured;
+  const dTerm = -Kd * rawDeriv;
+
+  let u = pTerm + iTerm + dTerm;
+  u = Math.max(-3, Math.min(3, u));
+
+  simYVel += (simK * u - 2 * simZeta * simWn * simYVel - simWn * simWn * simY) * dt;
+  simY += simYVel * dt;
+
+  simTime += dt;
+  simData.push({
+    t: simTime, y: simY, measured, error,
+    pTerm, iTerm, dTerm, u, setpoint
+  });
+
+  if (simData.length > 400) simData.shift();
+
+  if (inputType.value === 'step') updateMetrics(setpoint);
+}
+
+function updateMetrics(setpoint) {
+  if (simData.length < 10) return;
+
+  const ys = simData.map(d => d.y);
+  const maxY = Math.max(...ys);
+
+  if (maxY > setpoint && setpoint > 0) {
+    const overshoot = ((maxY - setpoint) / setpoint) * 100;
+    ovMetric.textContent = overshoot.toFixed(1) + '%';
+  } else {
+    ovMetric.textContent = '0.0%';
+  }
+
+  const y10 = setpoint * 0.1;
+  const y90 = setpoint * 0.9;
+  let t10 = -1, t90 = -1;
+  for (let i = 0; i < simData.length; i++) {
+    if (t10 < 0 && simData[i].y >= y10) t10 = simData[i].t;
+    if (t90 < 0 && simData[i].y >= y90) { t90 = simData[i].t; break; }
+  }
+  if (t10 > 0 && t90 > 0) {
+    rtMetric.textContent = (t90 - t10).toFixed(2) + 's';
+  }
+
+  const lastN = Math.min(20, simData.length);
+  const recent = simData.slice(-lastN);
+  const avgY = recent.reduce((s, d) => s + d.y, 0) / lastN;
+  ssMetric.textContent = Math.abs(setpoint - avgY).toFixed(3);
+
+  const band = setpoint * 0.05;
+  let settlingT = -1;
+  for (let i = 0; i < simData.length; i++) {
+    let withinBand = true;
+    for (let j = i; j < simData.length; j++) {
+      if (Math.abs(simData[j].y - setpoint) > band) {
+        withinBand = false;
+        break;
+      }
+    }
+    if (withinBand) { settlingT = simData[i].t; break; }
+  }
+  if (settlingT > 0) stMetric.textContent = settlingT.toFixed(2) + 's';
+}
+
+function drawPidCanvas() {
+  const { ctx, width: w, height: h } = pidSetup;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(42, 53, 80, 0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, h * i / 7);
+    ctx.lineTo(w, h * i / 7);
+    ctx.stroke();
+  }
+
+  if (simData.length < 2) return;
+
+  const allY = simData.flatMap(d => [d.y, d.setpoint]);
+  const maxY = Math.max(...allY, 1.3);
+  const minY = Math.min(...allY, -0.2);
+  const range = maxY - minY;
+
+  function mapY(val) {
+    return h - ((val - minY) / range) * h * 0.8 - h * 0.1;
+  }
+
+  // 目标值线
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.6)';
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  simData.forEach((d, i) => {
+    const x = (i / 399) * w;
+    const y = mapY(d.setpoint);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // P/I/D 分项曲线
+  if (showComponents.checked) {
+    const compScale = 0.3;
+    ctx.lineWidth = 1;
+    // P 项
+    ctx.strokeStyle = 'rgba(255, 107, 53, 0.5)';
+    ctx.beginPath();
+    simData.forEach((d, i) => {
+      const x = (i / 399) * w;
+      const y = h / 2 - d.pTerm * compScale * h * 0.3;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // I 项
+    ctx.strokeStyle = 'rgba(78, 205, 196, 0.5)';
+    ctx.beginPath();
+    simData.forEach((d, i) => {
+      const x = (i / 399) * w;
+      const y = h / 2 - d.iTerm * compScale * h * 0.3;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // D 项
+    ctx.strokeStyle = 'rgba(167, 139, 250, 0.5)';
+    ctx.beginPath();
+    simData.forEach((d, i) => {
+      const x = (i / 399) * w;
+      const y = h / 2 - d.dTerm * compScale * h * 0.3;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  // 控制输出 u(t)
+  ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  simData.forEach((d, i) => {
+    const x = (i / 399) * w;
+    const y = h - ((d.u + 3) / 6) * h * 0.15;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // 输出曲线
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  simData.forEach((d, i) => {
+    const x = (i / 399) * w;
+    const y = mapY(d.y);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // 当前点
+  const lastIdx = simData.length - 1;
+  const lastX = (lastIdx / 399) * w;
+  const lastY = mapY(simData[lastIdx].y);
+  ctx.fillStyle = '#00d4ff';
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function pidLoop() {
+  pidSimStep();
+  drawPidCanvas();
+  simRafId = requestAnimationFrame(pidLoop);
+}
+
+if (window.IntersectionObserver) {
+  const pidObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        if (simRafId === null) simRafId = requestAnimationFrame(pidLoop);
+      } else {
+        if (simRafId !== null) {
+          cancelAnimationFrame(simRafId);
+          simRafId = null;
+        }
+      }
+    });
+  }, { threshold: 0.1 });
+  pidObserver.observe(pidCanvas.parentElement);
+}
+pidLoop();
+
+// 滑块事件
+kpSlider.addEventListener('input', () => {
+  kpVal.textContent = parseFloat(kpSlider.value).toFixed(1);
+});
+kiSlider.addEventListener('input', () => {
+  kiVal.textContent = parseFloat(kiSlider.value).toFixed(2);
+});
+kdSlider.addEventListener('input', () => {
+  kdVal.textContent = parseFloat(kdSlider.value).toFixed(2);
+});
+
+// 切换输入类型时重置仿真
+inputType.addEventListener('change', () => {
+  resetSim();
+  if (inputType.value !== 'step') {
+    ovMetric.textContent = '--';
+    rtMetric.textContent = '--';
+    stMetric.textContent = '--';
+    ssMetric.textContent = '--';
+  }
+});
+
+// 暂停/继续
+simPauseBtn.addEventListener('click', () => {
+  simPaused = !simPaused;
+  simPauseBtn.textContent = simPaused ? '继续' : '暂停';
+});
+
+// 预设按钮
+document.getElementById('simReset').addEventListener('click', resetSim);
+document.getElementById('presetP').addEventListener('click', () => {
+  kpSlider.value = 1.5; kiSlider.value = 0; kdSlider.value = 0;
+  kpVal.textContent = '1.5'; kiVal.textContent = '0.00'; kdVal.textContent = '0.00';
+  resetSim();
+});
+document.getElementById('presetPI').addEventListener('click', () => {
+  kpSlider.value = 1.2; kiSlider.value = 0.8; kdSlider.value = 0;
+  kpVal.textContent = '1.2'; kiVal.textContent = '0.80'; kdVal.textContent = '0.00';
+  resetSim();
+});
+document.getElementById('presetPID').addEventListener('click', () => {
+  kpSlider.value = 2.0; kiSlider.value = 0.5; kdSlider.value = 0.3;
+  kpVal.textContent = '2.0'; kiVal.textContent = '0.50'; kdVal.textContent = '0.30';
+  resetSim();
+});
+
+// ========== 第五章：滤波效果对比演示 ==========
+const filterCanvas = document.getElementById('filterCanvas');
+const filterSetup = setupCanvas(filterCanvas);
+const alphaSlider = document.getElementById('alphaSlider');
+const alphaVal = document.getElementById('alphaVal');
+
+let rawSignal = [];
+let filteredSignal = [];
+let trueSignal = [];
+
+function generateFilterData() {
+  rawSignal = [];
+  trueSignal = [];
+  for (let i = 0; i < 300; i++) {
+    const t = i / 300;
+    let trueVal;
+    if (t < 0.1) trueVal = 0.3;
+    else if (t < 0.5) trueVal = 0.3 + (t - 0.1) / 0.4 * 0.4;
+    else trueVal = 0.7 + Math.sin((t - 0.5) * 8) * 0.1;
+    const noise = (Math.random() - 0.5) * 0.15;
+    let spike = 0;
+    if (Math.random() < 0.03) spike = (Math.random() - 0.5) * 0.4;
+    rawSignal.push(trueVal + noise + spike);
+    trueSignal.push(trueVal);
+  }
+  applyFilter();
+}
+
+function applyFilter() {
+  const alpha = parseFloat(alphaSlider.value);
+  filteredSignal = [];
+  let prevFiltered = rawSignal[0] || 0;
+  for (let i = 0; i < rawSignal.length; i++) {
+    prevFiltered = alpha * rawSignal[i] + (1 - alpha) * prevFiltered;
+    filteredSignal.push(prevFiltered);
+  }
+}
+
+function drawFilterCanvas() {
+  const { ctx, width: w, height: h } = filterSetup;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(42, 53, 80, 0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, h * i / 5);
+    ctx.lineTo(w, h * i / 5);
+    ctx.stroke();
+  }
+
+  const padding = 30;
+  const plotW = w - padding * 2;
+  const plotH = h - padding * 2;
+
+  const allVals = [...rawSignal, ...trueSignal, ...filteredSignal];
+  const maxV = Math.max(...allVals, 1);
+  const minV = Math.min(...allVals, 0);
+  const rangeV = maxV - minV;
+
+  function mapY(v) {
+    const clamped = Math.max(minV, Math.min(maxV, v));
+    return padding + (1 - (clamped - minV) / rangeV) * plotH;
+  }
+
+  function drawLine(data, color, width, alpha) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = padding + (i / (data.length - 1)) * plotW;
+      const y = mapY(v);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  drawLine(rawSignal, '#94a3b8', 1, 0.4);
+  drawLine(filteredSignal, '#00d4ff', 2, 1);
+
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  trueSignal.forEach((v, i) => {
+    const x = padding + (i / (trueSignal.length - 1)) * plotW;
+    const y = mapY(v);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+generateFilterData();
+drawFilterCanvas();
+
+alphaSlider.addEventListener('input', () => {
+  alphaVal.textContent = parseFloat(alphaSlider.value).toFixed(2);
+  applyFilter();
+  drawFilterCanvas();
+});
+
+document.getElementById('filterReset').addEventListener('click', () => {
+  generateFilterData();
+  drawFilterCanvas();
+});
+
+// ========== 5.4 滤波算法对比工作台 ==========
+(function () {
+  const canvas = document.getElementById('fwCanvas');
+  const setup = setupCanvas(canvas);
+  const ctx = setup.ctx;
+
+  const sigSel = document.getElementById('fwSignalType');
+  const algoSel = document.getElementById('fwAlgoSelect');
+  const sceneDesc = document.getElementById('fwSceneDesc');
+  const algoTitle = document.getElementById('fwAlgoTitle');
+  const algoDesc = document.getElementById('fwAlgoDesc');
+  const codeBlock = document.getElementById('fwCodeBlock');
+
+  const N_SAMPLES = 400;
+
+  const SCENE_DESC = {
+    sine: '场景：正弦信号跟踪 + 高斯噪声',
+    step: '场景：阶跃响应 + 脉冲干扰（检验抗冲击能力）',
+    const: '场景：恒定值 + 白噪声（检验降噪平滑能力）',
+    spike: '场景：正弦信号 + 随机尖峰干扰（如通信误码）',
+    sinusnoise: '场景：正弦信号 + 5Hz 单频干扰（检验陷波滤波）',
+  };
+
+  function buildSignal(type) {
+    const tVals = [], raw = [];
+    for (let i = 0; i < N_SAMPLES; i++) {
+      const t = i / N_SAMPLES;
+      let truth, noise;
+      switch (type) {
+        case 'sine':
+          truth = 0.5 + 0.3 * Math.sin(t * Math.PI * 4);
+          noise = (Math.random() - 0.5) * 0.15;
+          break;
+        case 'step':
+          truth = t < 0.3 ? 0.2 : 0.8;
+          noise = (Math.random() - 0.5) * 0.1;
+          if (Math.random() < 0.04) noise += (Math.random() - 0.5) * 0.8;
+          break;
+        case 'const':
+          truth = 0.5;
+          noise = (Math.random() - 0.5) * 0.2;
+          break;
+        case 'spike':
+          truth = 0.5 + 0.3 * Math.sin(t * Math.PI * 4);
+          noise = (Math.random() - 0.5) * 0.08;
+          if (Math.random() < 0.03) noise += (Math.random() - 0.5) * 0.8;
+          break;
+        case 'sinusnoise':
+          truth = 0.5 + 0.3 * Math.sin(t * Math.PI * 2);
+          noise = 0.18 * Math.sin(2 * Math.PI * 5 * t) + (Math.random() - 0.5) * 0.04;
+          break;
+        default:
+          truth = 0.5; noise = 0;
+      }
+      tVals.push(truth);
+      raw.push(truth + noise);
+    }
+    return { truth: tVals, raw };
+  }
+
+  const ALGOS = {
+    lpf: {
+      title: '一阶低通滤波',
+      desc: '保留低频、衰减高频噪声。α 越小越平滑，但相位滞后越大。适合平滑缓慢变化的信号：温度、电压、电流采样。',
+      run(raw, p) {
+        const out = []; let last = raw[0];
+        for (let i = 0; i < raw.length; i++) {
+          last = p.alpha * raw[i] + (1 - p.alpha) * last;
+          out.push(last);
+        }
+        return out;
+      },
+      code: `<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> alpha;    <span class="cmt">// 滤波系数 0 &lt; alpha &lt;= 1</span>
+  <span class="kw">float</span> last;     <span class="cmt">// 上次输出</span>
+} LPF;
+
+<span class="kw">float</span> <span class="fn">LPF_Update</span>(LPF *f, <span class="kw">float</span> input) {
+  f-&gt;last = f-&gt;alpha * input + (<span class="num">1.0f</span> - f-&gt;alpha) * f-&gt;last;
+  <span class="kw">return</span> f-&gt;last;
+}
+
+<span class="cmt">// 初始化：alpha 根据 Ts 和 τ 计算</span>
+<span class="cmt">// alpha = Ts / (τ + Ts)</span>`,
+    },
+    ma: {
+      title: '移动平均滤波',
+      desc: '取最近 N 个采样的算术平均。对随机噪声平滑效果好、实现简单；缺点是滞后固定为 N/2 个采样周期。适合周期性干扰抑制。',
+      run(raw, p) {
+        const out = []; const buf = []; let sum = 0;
+        for (let i = 0; i < raw.length; i++) {
+          buf.push(raw[i]); sum += raw[i];
+          if (buf.length > p.N) sum -= buf.shift();
+          out.push(sum / buf.length);
+        }
+        return out;
+      },
+      code: `<span class="cmt">#define MA_N 8</span>
+
+<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> buf[MA_N];
+  <span class="kw">int</span>   idx;
+  <span class="kw">float</span> sum;
+  <span class="kw">int</span>   count;
+} MAFilter;
+
+<span class="kw">float</span> <span class="fn">MA_Update</span>(MAFilter *f, <span class="kw">float</span> input) {
+  <span class="kw">if</span> (f-&gt;count &lt; MA_N) {
+    f-&gt;buf[f-&gt;idx] = input;
+    f-&gt;sum += input;
+    f-&gt;idx = (f-&gt;idx + <span class="num">1</span>) % MA_N;
+    f-&gt;count++;
+    <span class="kw">return</span> f-&gt;sum / f-&gt;count;
+  }
+  f-&gt;sum -= f-&gt;buf[f-&gt;idx];
+  f-&gt;buf[f-&gt;idx] = input;
+  f-&gt;sum += input;
+  f-&gt;idx = (f-&gt;idx + <span class="num">1</span>) % MA_N;
+  <span class="kw">return</span> f-&gt;sum / MA_N;
+}`,
+    },
+    med: {
+      title: '中值滤波',
+      desc: '取最近 N 个采样的中位数。对脉冲式尖峰（通信误码、传感器跳变）极其有效，对高斯白噪声效果一般。常用于数字量/通信类传感器。',
+      run(raw, p) {
+        const out = []; const buf = [];
+        for (let i = 0; i < raw.length; i++) {
+          buf.push(raw[i]);
+          if (buf.length > p.N) buf.shift();
+          const s = [...buf].sort((a, b) => a - b);
+          out.push(s[Math.floor(s.length / 2)]);
+        }
+        return out;
+      },
+      code: `<span class="cmt">#define MED_N 5   // 必须为奇数</span>
+
+<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> buf[MED_N];
+  <span class="kw">int</span>   idx;
+  <span class="kw">int</span>   count;
+} MedFilter;
+
+<span class="kw">float</span> <span class="fn">Med_Update</span>(MedFilter *f, <span class="kw">float</span> input) {
+  f-&gt;buf[f-&gt;idx] = input;
+  f-&gt;idx = (f-&gt;idx + <span class="num">1</span>) % MED_N;
+  <span class="kw">if</span> (f-&gt;count &lt; MED_N) f-&gt;count++;
+  <span class="kw">float</span> tmp[MED_N];
+  <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; f-&gt;count; i++) tmp[i] = f-&gt;buf[i];
+  <span class="cmt">// 插入排序（N 小，够用）</span>
+  <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">1</span>; i &lt; f-&gt;count; i++) {
+    <span class="kw">float</span> key = tmp[i];
+    <span class="kw">int</span> j = i - <span class="num">1</span>;
+    <span class="kw">while</span> (j &gt;= <span class="num">0</span> &amp;&amp; tmp[j] &gt; key) { tmp[j+<span class="num">1</span>] = tmp[j]; j--; }
+    tmp[j+<span class="num">1</span>] = key;
+  }
+  <span class="kw">return</span> tmp[f-&gt;count / <span class="num">2</span>];
+}`,
+    },
+    limit: {
+      title: '限幅滤波',
+      desc: '限制相邻两次采样间的最大变化量。专门用于消除传感器跳变/通信误码，对连续变化的信号几乎无影响。常与低通级联使用。',
+      run(raw, p) {
+        const out = []; let last = raw[0];
+        for (let i = 0; i < raw.length; i++) {
+          const d = Math.max(-p.limit, Math.min(p.limit, raw[i] - last));
+          last += d;
+          out.push(last);
+        }
+        return out;
+      },
+      code: `<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> last;
+  <span class="kw">float</span> limit;   <span class="cmt">// 相邻两次最大变化量</span>
+} LimitFilter;
+
+<span class="kw">float</span> <span class="fn">Limit_Update</span>(LimitFilter *f, <span class="kw">float</span> input) {
+  <span class="kw">float</span> delta = input - f-&gt;last;
+  <span class="kw">if</span> (delta &gt;  f-&gt;limit) delta =  f-&gt;limit;
+  <span class="kw">if</span> (delta &lt; -f-&gt;limit) delta = -f-&gt;limit;
+  f-&gt;last += delta;
+  <span class="kw">return</span> f-&gt;last;
+}
+
+<span class="cmt">// 常与低通级联：</span>
+<span class="cmt">// y1 = Limit_Update(&lf, raw);</span>
+<span class="cmt">// y2 = LPF_Update(&lpf, y1);</span>`,
+    },
+    kalman: {
+      title: '一维卡尔曼滤波',
+      desc: '基于系统模型的递归最优估计。Q 增大 → 更信任测量（跟随快、平滑弱）；R 增大 → 更信任模型（平滑强、跟随慢）。适合传感器融合、状态估计。',
+      run(raw, p) {
+        const out = []; let X = raw[0], P = 1.0;
+        for (let i = 0; i < raw.length; i++) {
+          P += p.Q;
+          const K = P / (P + p.R);
+          X += K * (raw[i] - X);
+          P *= (1 - K);
+          out.push(X);
+        }
+        return out;
+      },
+      code: `<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> Q;    <span class="cmt">// 过程噪声协方差</span>
+  <span class="kw">float</span> R;    <span class="cmt">// 测量噪声协方差</span>
+  <span class="kw">float</span> P;    <span class="cmt">// 估计误差协方差</span>
+  <span class="kw">float</span> X;    <span class="cmt">// 状态估计</span>
+  <span class="kw">int</span>   init;
+} Kalman1D;
+
+<span class="kw">float</span> <span class="fn">Kalman_Update</span>(Kalman1D *kf, <span class="kw">float</span> z) {
+  <span class="kw">if</span> (!kf-&gt;init) { kf-&gt;X = z; kf-&gt;P = <span class="num">1.0f</span>; kf-&gt;init = <span class="num">1</span>; }
+  kf-&gt;P += kf-&gt;Q;
+  <span class="kw">float</span> K = kf-&gt;P / (kf-&gt;P + kf-&gt;R);
+  kf-&gt;X += K * (z - kf-&gt;X);
+  kf-&gt;P *= (<span class="num">1.0f</span> - K);
+  <span class="kw">return</span> kf-&gt;X;
+}`,
+    },
+    notch: {
+      title: '陷波滤波',
+      desc: '专门衰减某一特定频率 f0 的窄带信号。电机/丝杠系统的机械共振通常出现在固定频率，用陷波器精准抑制、不影响其他频段。Q 越高陷波越窄。',
+      run(raw, p) {
+        const fs = N_SAMPLES;
+        const w0 = 2 * Math.PI * p.f0 / fs;
+        const alpha = Math.sin(w0) / (2 * p.Q);
+        const c = Math.cos(w0);
+        const a0 = 1 + alpha;
+        const b0 = 1 / a0, b1 = -2 * c / a0, b2 = 1 / a0;
+        const a1 = -2 * c / a0, a2 = (1 - alpha) / a0;
+        const out = [];
+        let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (let i = 0; i < raw.length; i++) {
+          const y = b0 * raw[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+          x2 = x1; x1 = raw[i];
+          y2 = y1; y1 = y;
+          out.push(y);
+        }
+        return out;
+      },
+      code: `<span class="cmt">// 二阶 IIR 陷波滤波器</span>
+<span class="kw">typedef struct</span> {
+  <span class="kw">float</span> b0, b1, b2, a1, a2;
+  <span class="kw">float</span> x1, x2, y1, y2;
+} Notch;
+
+<span class="kw">void</span> <span class="fn">Notch_Design</span>(Notch *n, <span class="kw">float</span> f0, <span class="kw">float</span> Q, <span class="kw">float</span> fs) {
+  <span class="kw">float</span> w0 = <span class="num">2.0f</span> * M_PI * f0 / fs;
+  <span class="kw">float</span> alpha = sinf(w0) / (<span class="num">2.0f</span> * Q);
+  <span class="kw">float</span> c = cosf(w0);
+  <span class="kw">float</span> a0 = <span class="num">1.0f</span> + alpha;
+  n-&gt;b0 =  <span class="num">1.0f</span> / a0;
+  n-&gt;b1 = -<span class="num">2.0f</span> * c / a0;
+  n-&gt;b2 =  <span class="num">1.0f</span> / a0;
+  n-&gt;a1 = -<span class="num">2.0f</span> * c / a0;
+  n-&gt;a2 = (<span class="num">1.0f</span> - alpha) / a0;
+}
+
+<span class="kw">float</span> <span class="fn">Notch_Update</span>(Notch *n, <span class="kw">float</span> x) {
+  <span class="kw">float</span> y = n-&gt;b0*x + n-&gt;b1*n-&gt;x1 + n-&gt;b2*n-&gt;x2
+            - n-&gt;a1*n-&gt;y1 - n-&gt;a2*n-&gt;y2;
+  n-&gt;x2 = n-&gt;x1; n-&gt;x1 = x;
+  n-&gt;y2 = n-&gt;y1; n-&gt;y1 = y;
+  <span class="kw">return</span> y;
+}`,
+    },
+  };
+
+  function readParams(algo) {
+    switch (algo) {
+      case 'lpf':    return { alpha: +document.getElementById('fwLpfAlpha').value };
+      case 'ma':     return { N: +document.getElementById('fwMaN').value };
+      case 'med':    return { N: +document.getElementById('fwMedN').value };
+      case 'limit':  return { limit: +document.getElementById('fwLimit').value };
+      case 'kalman': return { Q: +document.getElementById('fwKfQ').value, R: +document.getElementById('fwKfR').value };
+      case 'notch':  return { f0: +document.getElementById('fwNotchF0').value, Q: +document.getElementById('fwNotchQ').value };
+    }
+  }
+
+  let data = { truth: [], raw: [] }, filtered = [];
+
+  function redraw() {
+    const { width: w, height: h } = setup;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(42,53,80,0.4)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, h * i / 5);
+      ctx.lineTo(w, h * i / 5);
+      ctx.stroke();
+    }
+
+    const pad = 24;
+    const plotW = w - pad * 2, plotH = h - pad * 2;
+    const all = [...data.raw, ...data.truth, ...filtered];
+    const maxV = Math.max(...all, 1.2);
+    const minV = Math.min(...all, -0.2);
+    const range = maxV - minV || 1;
+    const mapY = v => pad + (1 - (v - minV) / range) * plotH;
+
+    const drawLine = (arr, color, lw, alpha = 1, dash = []) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      ctx.globalAlpha = alpha;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      arr.forEach((v, i) => {
+        const x = pad + (i / (arr.length - 1)) * plotW;
+        const y = mapY(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    };
+
+    drawLine(data.raw, '#94a3b8', 1, 0.4);
+    drawLine(data.truth, 'rgba(78,205,196,0.8)', 1.5, 1, [5, 4]);
+    drawLine(filtered, '#00d4ff', 2, 1);
+  }
+
+  function rebuild() {
+    data = buildSignal(sigSel.value);
+    filtered = ALGOS[algoSel.value].run(data.raw, readParams(algoSel.value));
+    redraw();
+  }
+
+  function updateUI() {
+    const algo = algoSel.value;
+    const meta = ALGOS[algo];
+    algoTitle.textContent = meta.title;
+    algoDesc.textContent = meta.desc;
+    codeBlock.innerHTML = meta.code;
+    sceneDesc.textContent = SCENE_DESC[sigSel.value];
+    document.querySelectorAll('.fw-param').forEach(el => {
+      el.style.display = el.dataset.algo === algo ? '' : 'none';
+    });
+  }
+
+  function bindLive(id, labelId, fmt = v => v) {
+    const el = document.getElementById(id);
+    const lab = document.getElementById(labelId);
+    el.addEventListener('input', () => {
+      lab.textContent = fmt(el.value);
+      rebuild();
+    });
+  }
+
+  bindLive('fwLpfAlpha', 'fwLpfAlphaVal', v => (+v).toFixed(2));
+  bindLive('fwMaN', 'fwMaNVal');
+  bindLive('fwMedN', 'fwMedNVal');
+  bindLive('fwLimit', 'fwLimitVal', v => (+v).toFixed(2));
+  bindLive('fwKfQ', 'fwKfQVal', v => (+v).toFixed(4));
+  bindLive('fwKfR', 'fwKfRVal', v => (+v).toFixed(3));
+  bindLive('fwNotchF0', 'fwNotchF0Val', v => (+v).toFixed(1));
+  bindLive('fwNotchQ', 'fwNotchQVal', v => (+v).toFixed(1));
+
+  sigSel.addEventListener('change', () => { rebuild(); updateUI(); });
+
+  algoSel.addEventListener('change', () => {
+    if (algoSel.value === 'notch' && sigSel.value !== 'sinusnoise') {
+      sigSel.value = 'sinusnoise';
+    }
+    updateUI();
+    rebuild();
+  });
+
+  document.getElementById('fwRegen').addEventListener('click', rebuild);
+
+  // 初始化
+  updateUI();
+  rebuild();
+})();
+
+// 初始更新
+updateProgress();
+updateActiveNav();
+</script>
+
+<script>
+/* ============================================================
+   学习辅助脚本
+   - 学习进度打卡（保存在浏览器本地）
+   - 目录关键词过滤
+   - 阅读字号切换
+   - 自测答案批量展开
+   - 打印时自动展开所有答案
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var CHAPTERS = ['sec1', 'sec2', 'sec3', 'sec4', 'sec5', 'sec6', 'sec7', 'sec8', 'appendix'];
+  var PROGRESS_KEY = 'pidbook.progress.v1';
+  var FONT_KEY = 'pidbook.fontlevel.v1';
+
+  var storage = {
+    get: function (key, fallback) {
+      try {
+        var raw = window.localStorage.getItem(key);
+        return raw === null ? fallback : raw;
+      } catch (e) { return fallback; }
+    },
+    set: function (key, value) {
+      try { window.localStorage.setItem(key, value); } catch (e) { /* 隐私模式忽略 */ }
+    }
+  };
+
+  /* ---------------- 学习进度 ---------------- */
+  var done = {};
+  try {
+    JSON.parse(storage.get(PROGRESS_KEY, '[]')).forEach(function (id) { done[id] = true; });
+  } catch (e) {
+    done = {};
+  }
+
+  var progressText = document.getElementById('studyProgressText');
+  var progressBar = document.getElementById('studyProgressBar');
+  var progressFill = document.getElementById('studyProgressFill');
+
+  function countDone() {
+    return CHAPTERS.filter(function (id) { return done[id] === true; }).length;
+  }
+
+  function renderProgress() {
+    var count = countDone();
+    var total = CHAPTERS.length;
+
+    if (progressText) progressText.textContent = count + ' / ' + total + ' 章';
+    if (progressFill) progressFill.style.width = Math.round(count / total * 100) + '%';
+    if (progressBar) progressBar.setAttribute('aria-valuenow', String(count));
+
+    document.querySelectorAll('.nav-check').forEach(function (btn) {
+      var on = done[btn.dataset.chapter] === true;
+      btn.classList.toggle('done', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+
+    document.querySelectorAll('.toc-chapter').forEach(function (wrap) {
+      var btn = wrap.querySelector('.nav-check');
+      wrap.classList.toggle('done', !!btn && done[btn.dataset.chapter] === true);
+    });
+
+    document.querySelectorAll('.mark-done').forEach(function (btn) {
+      var on = done[btn.dataset.chapter] === true;
+      btn.classList.toggle('done', on);
+      btn.textContent = on ? '✓ 已学完（点击取消）' : '标记本章已学完';
+    });
+  }
+
+  function toggleChapter(id) {
+    if (!id) return;
+    if (done[id] === true) delete done[id];
+    else done[id] = true;
+    storage.set(PROGRESS_KEY, JSON.stringify(Object.keys(done)));
+    renderProgress();
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.nav-check, .mark-done');
+    if (!btn) return;
+    toggleChapter(btn.dataset.chapter);
+  });
+
+  var resetBtn = document.getElementById('studyReset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      if (!countDone()) return;
+      if (!window.confirm('清空本机保存的学习进度？只影响进度记录，不影响页面内容。')) return;
+      done = {};
+      storage.set(PROGRESS_KEY, '[]');
+      renderProgress();
+    });
+  }
+
+  /* ---------------- 目录过滤 ---------------- */
+  var searchInput = document.getElementById('tocSearch');
+  var tocNav = document.getElementById('tocNav');
+
+  function filterToc(keyword) {
+    if (!tocNav) return;
+    var q = (keyword || '').trim().toLowerCase();
+
+    tocNav.querySelectorAll('.toc-chapter').forEach(function (wrap) {
+      var hit = !q || wrap.textContent.toLowerCase().indexOf(q) !== -1;
+      wrap.classList.toggle('toc-hidden', !hit);
+    });
+
+    tocNav.querySelectorAll(':scope > a').forEach(function (link) {
+      var hit = !q || link.textContent.toLowerCase().indexOf(q) !== -1;
+      link.classList.toggle('toc-hidden', !hit);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function () { filterToc(searchInput.value); });
+  }
+
+  /* ---------------- 阅读字号 ---------------- */
+  var FONT_LEVELS = [
+    { cls: '', label: '标准' },
+    { cls: 'text-lg', label: '大' },
+    { cls: 'text-xl', label: '特大' }
+  ];
+  var fontIndex = parseInt(storage.get(FONT_KEY, '0'), 10);
+  if (!(fontIndex >= 0 && fontIndex < FONT_LEVELS.length)) fontIndex = 0;
+
+  var fontTip = document.getElementById('fontTip');
+
+  function applyFont() {
+    document.body.classList.remove('text-lg', 'text-xl');
+    if (FONT_LEVELS[fontIndex].cls) document.body.classList.add(FONT_LEVELS[fontIndex].cls);
+    if (fontTip) fontTip.textContent = FONT_LEVELS[fontIndex].label;
+    storage.set(FONT_KEY, String(fontIndex));
+  }
+
+  function stepFont(delta) {
+    fontIndex = Math.min(FONT_LEVELS.length - 1, Math.max(0, fontIndex + delta));
+    applyFont();
+  }
+
+  var fontDown = document.getElementById('fontDown');
+  var fontUp = document.getElementById('fontUp');
+  if (fontDown) fontDown.addEventListener('click', function () { stepFont(-1); });
+  if (fontUp) fontUp.addEventListener('click', function () { stepFont(1); });
+
+  /* ---------------- 自测答案 ---------------- */
+  document.querySelectorAll('.quiz-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var quiz = btn.closest('.quiz');
+      if (!quiz) return;
+      var items = Array.prototype.slice.call(quiz.querySelectorAll('details'));
+      var allOpen = items.every(function (d) { return d.open; });
+      items.forEach(function (d) { d.open = !allOpen; });
+      btn.textContent = allOpen ? '展开全部答案' : '收起全部答案';
+    });
+  });
+
+  /* ---------------- 快捷键 ---------------- */
+  document.addEventListener('keydown', function (e) {
+    var el = e.target;
+    var typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+                        el.tagName === 'SELECT' || el.isContentEditable);
+
+    if (e.key === '/' && !typing) {
+      e.preventDefault();
+      if (searchInput) { searchInput.focus(); searchInput.select(); }
+      return;
+    }
+
+    if (e.key === 'Escape' && searchInput && document.activeElement === searchInput) {
+      searchInput.value = '';
+      filterToc('');
+      searchInput.blur();
+    }
+  });
+
+  /* ---------------- 打印时展开答案 ---------------- */
+  var printOpened = [];
+
+  window.addEventListener('beforeprint', function () {
+    printOpened = [];
+    document.querySelectorAll('details.quiz-item').forEach(function (d) {
+      if (!d.open) {
+        d.open = true;
+        printOpened.push(d);
+      }
+    });
+  });
+
+  window.addEventListener('afterprint', function () {
+    printOpened.forEach(function (d) { d.open = false; });
+    printOpened = [];
+  });
+
+  /* ---------------- 初始化 ---------------- */
+  renderProgress();
+  applyFont();
+})();
+</script>
+
+</body>
+</html>
